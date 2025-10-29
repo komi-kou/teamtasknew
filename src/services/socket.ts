@@ -15,14 +15,25 @@ class SocketService {
 
     this.currentTeamId = teamId;
     this.socket = io(SOCKET_URL, {
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'], // pollingも追加して接続性を向上
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
     });
 
     this.socket.on('connect', () => {
-      console.log('Connected to server');
+      console.log('Connected to server, teamId:', teamId);
+      if (teamId) {
+        this.joinTeam(teamId);
+        console.log('Joined team:', teamId);
+      }
+    });
+
+    // 再接続時にもルームに参加
+    this.socket.on('reconnect', (attemptNumber) => {
+      console.log('Reconnected after', attemptNumber, 'attempts');
       if (teamId) {
         this.joinTeam(teamId);
       }
@@ -62,19 +73,44 @@ class SocketService {
   }
 
   joinTeam(teamId: string) {
-    if (this.socket) {
+    if (this.socket && this.socket.connected) {
       this.socket.emit('join-team', teamId);
+      console.log('Emitted join-team event for teamId:', teamId);
+    } else {
+      console.warn('Cannot join team: socket not connected');
+      // 接続されていない場合、接続を再試行
+      if (teamId) {
+        this.connect(teamId);
+      }
     }
   }
 
   sendDataUpdate(teamId: string, dataType: string, data: any, userId?: string) {
-    if (this.socket) {
+    if (this.socket && this.socket.connected) {
+      console.log('Sending data update:', { teamId, dataType, userId, dataLength: Array.isArray(data) ? data.length : 'N/A' });
       this.socket.emit('data-update', {
         teamId,
         dataType,
         data,
         userId
       });
+    } else {
+      console.warn('Cannot send data update: socket not connected. Attempting to reconnect...');
+      // 接続されていない場合、接続を再試行
+      if (teamId) {
+        this.connect(teamId);
+        // 接続後に再送信を試みる
+        setTimeout(() => {
+          if (this.socket && this.socket.connected) {
+            this.socket.emit('data-update', {
+              teamId,
+              dataType,
+              data,
+              userId
+            });
+          }
+        }, 1000);
+      }
     }
   }
 

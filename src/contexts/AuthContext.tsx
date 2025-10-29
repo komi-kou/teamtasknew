@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import ApiService from '../services/api';
+import SocketService from '../services/socket';
 import { LocalStorage } from '../utils/storage';
 
 interface User {
@@ -146,6 +147,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = () => {
     console.log('ログアウト実行');
+    // Socket.io接続を切断
+    SocketService.disconnect();
+    
     setUser(null);
     LocalStorage.remove('authToken');
     LocalStorage.remove('currentUser');

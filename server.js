@@ -445,11 +445,17 @@ app.post('/api/data/:dataType', authenticateToken, async (req, res) => {
     );
 
     // Socket.ioでリアルタイム更新を通知
+    const room = io.sockets.adapter.rooms.get(teamId);
+    const clientCount = room ? room.size : 0;
+    console.log(`Sending data-updated event to team ${teamId} (${clientCount} connected clients)`);
+    
     io.to(teamId).emit('data-updated', {
       dataType,
       data,
       userId
     });
+    
+    console.log(`Data-updated event sent for ${dataType} to team ${teamId}`);
 
     res.json({ success: true });
   } catch (error) {
@@ -479,8 +485,17 @@ io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   socket.on('join-team', (teamId) => {
-    socket.join(teamId);
-    console.log(`User ${socket.id} joined team ${teamId}`);
+    if (teamId) {
+      socket.join(teamId);
+      console.log(`User ${socket.id} joined team ${teamId}`);
+      // ルーム内のクライアント数を確認（デバッグ用）
+      const room = io.sockets.adapter.rooms.get(teamId);
+      if (room) {
+        console.log(`Team ${teamId} now has ${room.size} connected clients`);
+      }
+    } else {
+      console.warn(`User ${socket.id} attempted to join team without teamId`);
+    }
   });
 
   socket.on('data-update', async (data) => {
@@ -560,7 +575,13 @@ io.on('connection', (socket) => {
          updateValues.documents, updateValues.meeting_minutes, updateValues.leads, 
          updateValues.service_materials, updateValues.sales_emails]
       );
-      socket.to(teamId).emit('data-updated', { dataType, data: newData, userId });
+      const room = io.sockets.adapter.rooms.get(teamId);
+      const clientCount = room ? room.size : 0;
+      console.log(`[Socket] Sending data-updated event to team ${teamId} (${clientCount} connected clients)`);
+      
+      io.to(teamId).emit('data-updated', { dataType, data: newData, userId });
+      
+      console.log(`[Socket] Data-updated event sent for ${dataType} to team ${teamId}`);
     } catch (error) {
       console.error('Socket data update error:', error);
     }
