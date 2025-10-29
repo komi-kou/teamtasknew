@@ -57,26 +57,29 @@ const Tasks: React.FC = () => {
         ApiService.getData(STORAGE_KEYS.TEAM_MEMBERS)
       ]);
       
-      let hasServerData = false;
-      
       // サーバーのデータを優先的に使用（常に最新の状態を保持）
-      if (tasksResponse.data && Array.isArray(tasksResponse.data) && tasksResponse.data.length > 0) {
+      // チームメンバー追加と同じパターン：サーバーのデータを常に適用（空配列でも）
+      if (tasksResponse.data && Array.isArray(tasksResponse.data)) {
         console.log('サーバーからのデータを適用:', tasksResponse.data.length, '件');
         setTasks(tasksResponse.data);
         LocalStorage.set(STORAGE_KEYS.TASKS_DATA, tasksResponse.data);
-        hasServerData = true;
+      } else {
+        // サーバーにデータがない場合のみ、LocalStorageから読み込み
+        const savedTasks = LocalStorage.get<Task[]>(STORAGE_KEYS.TASKS_DATA);
+        if (savedTasks && savedTasks.length > 0) {
+          setTasks(savedTasks);
+        }
       }
-      if (membersResponse.data && Array.isArray(membersResponse.data) && membersResponse.data.length > 0) {
+      
+      if (membersResponse.data && Array.isArray(membersResponse.data)) {
         console.log('サーバーからのチームメンバーデータを適用:', membersResponse.data.length, '件');
         setTeamMembers(membersResponse.data);
         LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, membersResponse.data);
-        hasServerData = true;
-      }
-      
-      // サーバーにデータがない場合、LocalStorageからフォールバック
-      if (!hasServerData) {
-        console.log('サーバーにデータがないため、LocalStorageから読み込みます');
-        loadDataFromLocal();
+      } else {
+        const savedMembers = LocalStorage.get<TeamMember[]>(STORAGE_KEYS.TEAM_MEMBERS);
+        if (savedMembers && savedMembers.length > 0) {
+          setTeamMembers(savedMembers);
+        }
       }
       
     } catch (error) {

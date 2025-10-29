@@ -60,10 +60,17 @@ const ServiceMaterials: React.FC = () => {
     try {
       setIsLoading(true);
       const response = await ApiService.getData(STORAGE_KEYS.SERVICE_MATERIALS);
+      // チームメンバー追加と同じパターン：サーバーのデータを常に適用（空配列でも）
       if (response.data && Array.isArray(response.data)) {
         console.log('サーバーからのサービス資料データを適用:', response.data.length, '件');
         setMaterials(response.data);
         LocalStorage.set(STORAGE_KEYS.SERVICE_MATERIALS, response.data);
+      } else {
+        // サーバーにデータがない場合のみ、LocalStorageから読み込み
+        const savedMaterials = LocalStorage.get<ServiceMaterial[]>(STORAGE_KEYS.SERVICE_MATERIALS);
+        if (savedMaterials && savedMaterials.length > 0) {
+          setMaterials(savedMaterials);
+        }
       }
     } catch (error) {
       console.error('サーバーからのデータ取得エラー:', error);
@@ -215,7 +222,11 @@ const ServiceMaterials: React.FC = () => {
       LocalStorage.set(STORAGE_KEYS.SERVICE_MATERIALS, updatedMaterials);
       
       // サーバーに保存
-      await saveDataToServer(STORAGE_KEYS.SERVICE_MATERIALS, updatedMaterials);
+      try {
+        await saveDataToServer(STORAGE_KEYS.SERVICE_MATERIALS, updatedMaterials);
+      } catch (error) {
+        console.error('サービス資料の保存に失敗しましたが、LocalStorageには保存済みです');
+      }
     }
     
     setNewMaterial({
@@ -279,7 +290,11 @@ const ServiceMaterials: React.FC = () => {
       LocalStorage.set(STORAGE_KEYS.SERVICE_MATERIALS, updatedMaterials);
       
       // サーバーに保存
-      await saveDataToServer(STORAGE_KEYS.SERVICE_MATERIALS, updatedMaterials);
+      try {
+        await saveDataToServer(STORAGE_KEYS.SERVICE_MATERIALS, updatedMaterials);
+      } catch (error) {
+        console.error('サービス資料の削除に失敗しましたが、LocalStorageには保存済みです');
+      }
     }
   };
 
@@ -291,7 +306,11 @@ const ServiceMaterials: React.FC = () => {
     LocalStorage.set(STORAGE_KEYS.SERVICE_MATERIALS, updatedMaterials);
     
     // サーバーに保存
-    await saveDataToServer(STORAGE_KEYS.SERVICE_MATERIALS, updatedMaterials);
+    try {
+      await saveDataToServer(STORAGE_KEYS.SERVICE_MATERIALS, updatedMaterials);
+    } catch (error) {
+      console.error('ダウンロード数の更新に失敗しましたが、LocalStorageには保存済みです');
+    }
     
     if (material.fileData) {
       const link = document.createElement('a');

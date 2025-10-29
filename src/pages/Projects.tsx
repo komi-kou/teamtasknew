@@ -95,15 +95,28 @@ const Projects: React.FC = () => {
       ]);
       
       // サーバーのデータを優先的に使用（常に最新の状態を保持）
+      // チームメンバー追加と同じパターン：サーバーのデータを常に適用（空配列でも）
       if (projectsResponse.data && Array.isArray(projectsResponse.data)) {
         console.log('サーバーからの案件データを適用:', projectsResponse.data.length, '件');
         setProjects(projectsResponse.data);
         LocalStorage.set(STORAGE_KEYS.PROJECTS_DATA, projectsResponse.data);
+      } else {
+        // サーバーにデータがない場合のみ、LocalStorageから読み込み
+        const savedProjects = LocalStorage.get<Project[]>(STORAGE_KEYS.PROJECTS_DATA);
+        if (savedProjects && savedProjects.length > 0) {
+          setProjects(savedProjects);
+        }
       }
+      
       if (membersResponse.data && Array.isArray(membersResponse.data)) {
         console.log('サーバーからのチームメンバーデータを適用:', membersResponse.data.length, '件');
         setTeamMembers(membersResponse.data);
         LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, membersResponse.data);
+      } else {
+        const savedMembers = LocalStorage.get<{id: number, name: string, role: string}[]>(STORAGE_KEYS.TEAM_MEMBERS);
+        if (savedMembers && savedMembers.length > 0) {
+          setTeamMembers(savedMembers);
+        }
       }
     } catch (error) {
       console.error('サーバーからのデータ取得エラー:', error);

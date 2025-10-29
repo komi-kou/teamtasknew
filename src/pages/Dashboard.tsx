@@ -83,50 +83,73 @@ const Dashboard: React.FC = () => {
       
       console.log('Server data received:', Object.keys(serverData));
       
-      let hasServerData = false;
-      
       // サーバーのデータを優先的に使用（常に最新の状態を保持）
-      if (serverData.tasks && Array.isArray(serverData.tasks) && serverData.tasks.length > 0) {
+      // チームメンバー追加と同じパターン：サーバーのデータを常に適用（空配列でも）
+      if (serverData.tasks && Array.isArray(serverData.tasks)) {
         console.log('サーバーからのタスクデータを適用:', serverData.tasks.length, '件');
         setTasks(serverData.tasks);
         LocalStorage.set(STORAGE_KEYS.TASKS_DATA, serverData.tasks);
-        hasServerData = true;
+      } else if (!serverData.tasks) {
+        // サーバーに該当データがない場合のみ、LocalStorageから読み込み
+        const savedTasks = LocalStorage.get<any[]>(STORAGE_KEYS.TASKS_DATA);
+        if (savedTasks && savedTasks.length > 0) {
+          setTasks(savedTasks);
+        }
       }
-      if (serverData.projects && Array.isArray(serverData.projects) && serverData.projects.length > 0) {
+      
+      if (serverData.projects && Array.isArray(serverData.projects)) {
         console.log('サーバーからの案件データを適用:', serverData.projects.length, '件');
         setProjects(serverData.projects);
         LocalStorage.set(STORAGE_KEYS.PROJECTS_DATA, serverData.projects);
-        hasServerData = true;
+      } else if (!serverData.projects) {
+        const savedProjects = LocalStorage.get<Project[]>(STORAGE_KEYS.PROJECTS_DATA);
+        if (savedProjects && savedProjects.length > 0) {
+          setProjects(savedProjects);
+          // 案件データから売上データを自動生成
+          const monthlyRevenue = generateMonthlyRevenueFromProjects(savedProjects);
+          if (monthlyRevenue.length > 0) {
+            setSalesData(monthlyRevenue);
+          }
+        }
       }
-      if (serverData.sales && Array.isArray(serverData.sales) && serverData.sales.length > 0) {
+      
+      if (serverData.sales && Array.isArray(serverData.sales)) {
         console.log('サーバーからの売上データを適用:', serverData.sales.length, '件');
         setSalesData(serverData.sales);
         LocalStorage.set(STORAGE_KEYS.SALES_DATA, serverData.sales);
-        hasServerData = true;
       }
-      if (serverData.team_members && Array.isArray(serverData.team_members) && serverData.team_members.length > 0) {
+      
+      if (serverData.team_members && Array.isArray(serverData.team_members)) {
         console.log('サーバーからのチームメンバーデータを適用:', serverData.team_members.length, '件');
         setTeamMembers(serverData.team_members);
         LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, serverData.team_members);
-        hasServerData = true;
+      } else if (!serverData.team_members) {
+        const savedMembers = LocalStorage.get<TeamMember[]>(STORAGE_KEYS.TEAM_MEMBERS);
+        if (savedMembers && savedMembers.length > 0) {
+          setTeamMembers(savedMembers);
+        }
       }
-      if (serverData.meetings && Array.isArray(serverData.meetings) && serverData.meetings.length > 0) {
+      
+      if (serverData.meetings && Array.isArray(serverData.meetings)) {
         console.log('サーバーからの会議データを適用:', serverData.meetings.length, '件');
         setMeetings(serverData.meetings);
         LocalStorage.set(STORAGE_KEYS.MEETINGS, serverData.meetings);
-        hasServerData = true;
+      } else if (!serverData.meetings) {
+        const savedMeetings = LocalStorage.get<Meeting[]>(STORAGE_KEYS.MEETINGS);
+        if (savedMeetings && savedMeetings.length > 0) {
+          setMeetings(savedMeetings);
+        }
       }
-      if (serverData.activities && Array.isArray(serverData.activities) && serverData.activities.length > 0) {
+      
+      if (serverData.activities && Array.isArray(serverData.activities)) {
         console.log('サーバーからのアクティビティデータを適用:', serverData.activities.length, '件');
         setActivities(serverData.activities);
         LocalStorage.set(STORAGE_KEYS.ACTIVITIES, serverData.activities);
-        hasServerData = true;
-      }
-      
-      // サーバーにデータがない場合、LocalStorageからフォールバック
-      if (!hasServerData) {
-        console.log('サーバーにデータがないため、LocalStorageから読み込みます');
-        loadDataFromLocal();
+      } else if (!serverData.activities) {
+        const savedActivities = LocalStorage.get<Activity[]>(STORAGE_KEYS.ACTIVITIES);
+        if (savedActivities && savedActivities.length > 0) {
+          setActivities(savedActivities);
+        }
       }
       
     } catch (error) {

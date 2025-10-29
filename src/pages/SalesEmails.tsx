@@ -50,10 +50,17 @@ const SalesEmails: React.FC = () => {
     try {
       setIsLoading(true);
       const response = await ApiService.getData(STORAGE_KEYS.SALES_EMAILS);
+      // チームメンバー追加と同じパターン：サーバーのデータを常に適用（空配列でも）
       if (response.data && Array.isArray(response.data)) {
         console.log('サーバーからの営業メールデータを適用:', response.data.length, '件');
         setEmails(response.data);
         LocalStorage.set(STORAGE_KEYS.SALES_EMAILS, response.data);
+      } else {
+        // サーバーにデータがない場合のみ、LocalStorageから読み込み
+        const savedEmails = LocalStorage.get<SalesEmail[]>(STORAGE_KEYS.SALES_EMAILS);
+        if (savedEmails && savedEmails.length > 0) {
+          setEmails(savedEmails);
+        }
       }
     } catch (error) {
       console.error('サーバーからのデータ取得エラー:', error);
@@ -188,7 +195,11 @@ const SalesEmails: React.FC = () => {
       LocalStorage.set(STORAGE_KEYS.SALES_EMAILS, updatedEmails);
       
       // サーバーに保存
-      await saveDataToServer(STORAGE_KEYS.SALES_EMAILS, updatedEmails);
+      try {
+        await saveDataToServer(STORAGE_KEYS.SALES_EMAILS, updatedEmails);
+      } catch (error) {
+        console.error('営業メールの保存に失敗しましたが、LocalStorageには保存済みです');
+      }
       
       setNewEmail({
         emailType: 'inquiry',
@@ -245,7 +256,11 @@ const SalesEmails: React.FC = () => {
       LocalStorage.set(STORAGE_KEYS.SALES_EMAILS, updatedEmails);
       
       // サーバーに保存
-      await saveDataToServer(STORAGE_KEYS.SALES_EMAILS, updatedEmails);
+      try {
+        await saveDataToServer(STORAGE_KEYS.SALES_EMAILS, updatedEmails);
+      } catch (error) {
+        console.error('営業メールの削除に失敗しましたが、LocalStorageには保存済みです');
+      }
     }
   };
 

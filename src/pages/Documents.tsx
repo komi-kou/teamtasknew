@@ -70,6 +70,28 @@ const Documents: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
 
+  // データをサーバーに保存
+  const saveDataToServer = async (dataType: string, data: any) => {
+    if (!isAuthenticated) {
+      console.warn('認証されていないため、サーバーへの保存をスキップ');
+      return;
+    }
+    
+    try {
+      console.log('サーバーへの保存を開始:', dataType, data.length || 'N/A', '件');
+      await ApiService.saveData(dataType, data);
+      console.log('サーバーへの保存が成功しました:', dataType);
+      
+      // Socket.ioで他のクライアントに通知
+      if (user?.teamId) {
+        SocketService.sendDataUpdate(user.teamId, dataType, data, user.id);
+      }
+    } catch (error: any) {
+      console.error('サーバーへのデータ保存エラー:', error);
+      throw error;
+    }
+  };
+
   // データをサーバーから取得
   const loadDataFromServer = async () => {
     if (!isAuthenticated) return;
@@ -82,20 +104,38 @@ const Documents: React.FC = () => {
       ]);
       
       // サーバーのデータを優先的に使用（常に最新の状態を保持）
+      // チームメンバー追加と同じパターン：サーバーのデータを常に適用（空配列でも）
       if (docsResponse.data && Array.isArray(docsResponse.data)) {
         console.log('サーバーからの資料データを適用:', docsResponse.data.length, '件');
         setDocuments(docsResponse.data);
         LocalStorage.set(STORAGE_KEYS.DOCUMENTS_DATA, docsResponse.data);
+      } else {
+        const savedDocs = LocalStorage.get<Document[]>(STORAGE_KEYS.DOCUMENTS_DATA);
+        if (savedDocs && savedDocs.length > 0) {
+          setDocuments(savedDocs);
+        }
       }
+      
       if (minutesResponse.data && Array.isArray(minutesResponse.data)) {
         console.log('サーバーからの議事録データを適用:', minutesResponse.data.length, '件');
         setMeetingMinutes(minutesResponse.data);
         LocalStorage.set(STORAGE_KEYS.MEETING_MINUTES, minutesResponse.data);
+      } else {
+        const savedMinutes = LocalStorage.get<MeetingMinutes[]>(STORAGE_KEYS.MEETING_MINUTES);
+        if (savedMinutes && savedMinutes.length > 0) {
+          setMeetingMinutes(savedMinutes);
+        }
       }
+      
       if (membersResponse.data && Array.isArray(membersResponse.data)) {
         console.log('サーバーからのチームメンバーデータを適用:', membersResponse.data.length, '件');
         setTeamMembers(membersResponse.data);
         LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, membersResponse.data);
+      } else {
+        const savedMembers = LocalStorage.get<{id: number, name: string, role: string}[]>(STORAGE_KEYS.TEAM_MEMBERS);
+        if (savedMembers && savedMembers.length > 0) {
+          setTeamMembers(savedMembers);
+        }
       }
     } catch (error) {
       console.error('サーバーからのデータ取得エラー:', error);
@@ -264,16 +304,10 @@ const Documents: React.FC = () => {
       setDocuments(updatedDocs);
       LocalStorage.set(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
       
-      // サーバーに保存
+      // サーバーに保存（チームメンバー追加と同じパターン）
       try {
-        await ApiService.saveData(STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
-        await ApiService.saveData(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
-        
-        // Socket.ioで他のクライアントに通知
-        if (user?.teamId) {
-          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.MEETING_MINUTES, updatedMinutes, user.id);
-          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs, user.id);
-        }
+        await saveDataToServer(STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
+        await saveDataToServer(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
       } catch (error) {
         console.error('議事録・資料データの保存に失敗しましたが、LocalStorageには保存済みです');
       }
@@ -353,14 +387,9 @@ const Documents: React.FC = () => {
       setDocuments(updatedDocs);
       LocalStorage.set(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
       
-      // サーバーに保存
+      // サーバーに保存（チームメンバー追加と同じパターン）
       try {
-        await ApiService.saveData(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
-        
-        // Socket.ioで他のクライアントに通知
-        if (user?.teamId) {
-          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs, user.id);
-        }
+        await saveDataToServer(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
       } catch (error) {
         console.error('コメントデータの保存に失敗しましたが、LocalStorageには保存済みです');
       }
@@ -411,19 +440,11 @@ const Documents: React.FC = () => {
         LocalStorage.set(STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
       }
       
-      // サーバーに保存
+      // サーバーに保存（チームメンバー追加と同じパターン）
       try {
-        await ApiService.saveData(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
+        await saveDataToServer(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
         if (doc.type === '議事録') {
-          await ApiService.saveData(STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
-        }
-        
-        // Socket.ioで他のクライアントに通知
-        if (user?.teamId) {
-          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs, user.id);
-          if (doc.type === '議事録') {
-            SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.MEETING_MINUTES, updatedMinutes, user.id);
-          }
+          await saveDataToServer(STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
         }
       } catch (error) {
         console.error('資料・議事録データの削除に失敗しましたが、LocalStorageには保存済みです');

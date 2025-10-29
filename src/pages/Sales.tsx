@@ -65,10 +65,17 @@ const Sales: React.FC = () => {
     try {
       setIsLoading(true);
       const response = await ApiService.getData(STORAGE_KEYS.LEADS_DATA);
+      // チームメンバー追加と同じパターン：サーバーのデータを常に適用（空配列でも）
       if (response.data && Array.isArray(response.data)) {
         console.log('サーバーからのリードデータを適用:', response.data.length, '件');
         setLeads(response.data);
         LocalStorage.set(STORAGE_KEYS.LEADS_DATA, response.data);
+      } else {
+        // サーバーにデータがない場合のみ、LocalStorageから読み込み
+        const savedLeads = LocalStorage.get<Lead[]>(STORAGE_KEYS.LEADS_DATA);
+        if (savedLeads && savedLeads.length > 0) {
+          setLeads(savedLeads);
+        }
       }
     } catch (error) {
       console.error('サーバーからのデータ取得エラー:', error);
