@@ -111,9 +111,14 @@ const Documents: React.FC = () => {
       if (user?.teamId) {
         SocketService.connect(user.teamId);
         
-        // リアルタイム更新のリスナーを設定
+        // リアルタイム更新のリスナーを設定（他のユーザーの変更のみ適用）
         const handleDataUpdate = (data: any) => {
-          const { dataType, data: newData } = data;
+          const { dataType, data: newData, userId } = data;
+          
+          // 現在のユーザー自身の変更は無視（LocalStorage優先）
+          if (userId === user?.id) {
+            return;
+          }
           
           if (dataType === STORAGE_KEYS.DOCUMENTS_DATA) {
             setDocuments(newData);
@@ -249,8 +254,8 @@ const Documents: React.FC = () => {
         
         // Socket.ioで他のクライアントに通知
         if (user?.teamId) {
-          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
-          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
+          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.MEETING_MINUTES, updatedMinutes, user.id);
+          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs, user.id);
         }
       } catch (error) {
         console.error('議事録・資料データの保存に失敗しましたが、LocalStorageには保存済みです');
@@ -337,7 +342,7 @@ const Documents: React.FC = () => {
         
         // Socket.ioで他のクライアントに通知
         if (user?.teamId) {
-          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
+          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs, user.id);
         }
       } catch (error) {
         console.error('コメントデータの保存に失敗しましたが、LocalStorageには保存済みです');
@@ -398,9 +403,9 @@ const Documents: React.FC = () => {
         
         // Socket.ioで他のクライアントに通知
         if (user?.teamId) {
-          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
+          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs, user.id);
           if (doc.type === '議事録') {
-            SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
+            SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.MEETING_MINUTES, updatedMinutes, user.id);
           }
         }
       } catch (error) {

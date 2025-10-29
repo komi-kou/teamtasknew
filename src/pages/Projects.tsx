@@ -72,7 +72,7 @@ const Projects: React.FC = () => {
       
       // Socket.ioで他のクライアントに通知
       if (user?.teamId) {
-        SocketService.sendDataUpdate(user.teamId, dataType, data);
+        SocketService.sendDataUpdate(user.teamId, dataType, data, user.id);
       }
     } catch (error: any) {
       console.error('サーバーへのデータ保存エラー:', error);
@@ -131,9 +131,14 @@ const Projects: React.FC = () => {
       if (user?.teamId) {
         SocketService.connect(user.teamId);
         
-        // リアルタイム更新のリスナーを設定
+        // リアルタイム更新のリスナーを設定（他のユーザーの変更のみ適用）
         const handleDataUpdate = (data: any) => {
-          const { dataType, data: newData } = data;
+          const { dataType, data: newData, userId } = data;
+          
+          // 現在のユーザー自身の変更は無視（LocalStorage優先）
+          if (userId === user?.id) {
+            return;
+          }
           
           if (dataType === STORAGE_KEYS.PROJECTS_DATA) {
             setProjects(newData);

@@ -99,7 +99,7 @@ const Tasks: React.FC = () => {
       
       // Socket.ioで他のクライアントに通知
       if (user?.teamId) {
-        SocketService.sendDataUpdate(user.teamId, dataType, data);
+        SocketService.sendDataUpdate(user.teamId, dataType, data, user.id);
       }
       
       return result;
@@ -112,12 +112,8 @@ const Tasks: React.FC = () => {
   };
 
   useEffect(() => {
-    // まずLocalStorageから読み込む
-    loadDataFromLocal();
-    setIsLoading(false);
-    
     if (isAuthenticated) {
-      // サーバーからも取得を試みる（バックグラウンド）
+      // サーバーから取得（優先）
       loadDataFromServer();
       
       // Socket.io接続
@@ -129,14 +125,16 @@ const Tasks: React.FC = () => {
           const { dataType, data: newData, userId } = data;
           
           // 現在のユーザー自身の変更は無視（LocalStorage優先）
-          if (userId === user?.userId) {
+          if (userId === user?.id) {
             return;
           }
           
           if (dataType === STORAGE_KEYS.TASKS_DATA) {
             setTasks(newData);
+            LocalStorage.set(STORAGE_KEYS.TASKS_DATA, newData);
           } else if (dataType === STORAGE_KEYS.TEAM_MEMBERS) {
             setTeamMembers(newData);
+            LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, newData);
           }
         };
         
@@ -146,6 +144,10 @@ const Tasks: React.FC = () => {
           SocketService.off('dataUpdated', handleDataUpdate);
         };
       }
+    } else {
+      // 非認証時はローカルストレージから読み込み
+      loadDataFromLocal();
+      setIsLoading(false);
     }
   }, [isAuthenticated, user?.teamId]);
 

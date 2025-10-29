@@ -165,7 +165,7 @@ const Dashboard: React.FC = () => {
       
       // Socket.ioで他のクライアントに通知
       if (user?.teamId) {
-        SocketService.sendDataUpdate(user.teamId, dataType, data);
+        SocketService.sendDataUpdate(user.teamId, dataType, data, user.id);
       }
       
       return result;
@@ -178,12 +178,8 @@ const Dashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    // まずLocalStorageから読み込む
-    loadDataFromLocal();
-    setIsLoading(false);
-    
     if (isAuthenticated) {
-      // サーバーからも取得を試みる（バックグラウンド）
+      // サーバーから取得（優先）
       loadDataFromServer();
       
       // Socket.io接続
@@ -204,21 +200,27 @@ const Dashboard: React.FC = () => {
           switch (dataType) {
             case STORAGE_KEYS.SALES_DATA:
               setSalesData(newData);
+              LocalStorage.set(STORAGE_KEYS.SALES_DATA, newData);
               break;
             case STORAGE_KEYS.TEAM_MEMBERS:
               setTeamMembers(newData);
+              LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, newData);
               break;
             case STORAGE_KEYS.MEETINGS:
               setMeetings(newData);
+              LocalStorage.set(STORAGE_KEYS.MEETINGS, newData);
               break;
             case STORAGE_KEYS.ACTIVITIES:
               setActivities(newData);
+              LocalStorage.set(STORAGE_KEYS.ACTIVITIES, newData);
               break;
             case STORAGE_KEYS.PROJECTS_DATA:
               setProjects(newData);
+              LocalStorage.set(STORAGE_KEYS.PROJECTS_DATA, newData);
               break;
             case STORAGE_KEYS.TASKS_DATA:
               setTasks(newData);
+              LocalStorage.set(STORAGE_KEYS.TASKS_DATA, newData);
               break;
           }
         };
@@ -230,6 +232,10 @@ const Dashboard: React.FC = () => {
           SocketService.off('dataUpdated', handleDataUpdate);
         };
       }
+    } else {
+      // 非認証時はローカルストレージから読み込み
+      loadDataFromLocal();
+      setIsLoading(false);
     }
   }, [isAuthenticated, user?.teamId]);
 

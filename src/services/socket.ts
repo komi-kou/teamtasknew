@@ -67,12 +67,13 @@ class SocketService {
     }
   }
 
-  sendDataUpdate(teamId: string, dataType: string, data: any) {
+  sendDataUpdate(teamId: string, dataType: string, data: any, userId?: string) {
     if (this.socket) {
       this.socket.emit('data-update', {
         teamId,
         dataType,
-        data
+        data,
+        userId
       });
     }
   }

@@ -484,7 +484,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('data-update', async (data) => {
-    const { teamId, dataType, data: newData } = data;
+    const { teamId, dataType, data: newData, userId } = data;
       const fieldMap = {
         'tasks': 'tasks',
         'tasksData': 'tasks',
@@ -560,7 +560,7 @@ io.on('connection', (socket) => {
          updateValues.documents, updateValues.meeting_minutes, updateValues.leads, 
          updateValues.service_materials, updateValues.sales_emails]
       );
-      socket.to(teamId).emit('data-updated', { dataType, data: newData });
+      socket.to(teamId).emit('data-updated', { dataType, data: newData, userId });
     } catch (error) {
       console.error('Socket data update error:', error);
     }

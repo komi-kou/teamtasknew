@@ -68,7 +68,7 @@ export const useDataSync = <T = any>({
       
       // Socket.ioで他のクライアントに通知
       if (user?.teamId) {
-        SocketService.sendDataUpdate(user.teamId, storageKey, newData);
+        SocketService.sendDataUpdate(user.teamId, storageKey, newData, user.id);
       }
     } catch (err) {
       console.error('サーバーへのデータ保存エラー:', err);
