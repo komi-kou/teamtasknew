@@ -278,6 +278,13 @@ const Projects: React.FC = () => {
     );
     setProjects(updatedProjects);
     LocalStorage.set(STORAGE_KEYS.PROJECTS_DATA, updatedProjects);
+    
+    // サーバーに保存
+    try {
+      await saveDataToServer(STORAGE_KEYS.PROJECTS_DATA, updatedProjects);
+    } catch (error) {
+      console.error('進捗データの保存に失敗しましたが、LocalStorageには保存済みです');
+    }
   };
 
   const updateProjectStatus = async (projectId: number, status: Project['status'], actualRevenue?: number) => {
@@ -337,6 +344,13 @@ const Projects: React.FC = () => {
       const updatedProjects = projects.filter(p => p.id !== projectId);
       setProjects(updatedProjects);
       LocalStorage.set(STORAGE_KEYS.PROJECTS_DATA, updatedProjects);
+      
+      // サーバーに保存
+      try {
+        await saveDataToServer(STORAGE_KEYS.PROJECTS_DATA, updatedProjects);
+      } catch (error) {
+        console.error('案件データの削除に失敗しましたが、LocalStorageには保存済みです');
+      }
     }
   };
 

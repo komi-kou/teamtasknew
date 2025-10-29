@@ -96,6 +96,12 @@ const Tasks: React.FC = () => {
       console.log('サーバーへの保存を開始:', dataType, data.length || 'N/A', '件');
       const result = await ApiService.saveData(dataType, data);
       console.log('サーバーへの保存が成功しました:', dataType);
+      
+      // Socket.ioで他のクライアントに通知
+      if (user?.teamId) {
+        SocketService.sendDataUpdate(user.teamId, dataType, data);
+      }
+      
       return result;
     } catch (error: any) {
       console.error('サーバーへのデータ保存エラー:', error);

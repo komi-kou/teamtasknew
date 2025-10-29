@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, MessageSquare, Search, Calendar, Plus, Users, Clock, Edit2, Trash2 } from 'lucide-react';
 import { LocalStorage, STORAGE_KEYS } from '../utils/storage';
+import { useAuth } from '../contexts/AuthContext';
 import ApiService from '../services/api';
+import SocketService from '../services/socket';
 import './Documents.css';
 
 interface Document {
@@ -49,6 +51,7 @@ interface MeetingMinutes {
 }
 
 const Documents: React.FC = () => {
+  const { user, isAuthenticated } = useAuth();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [meetingMinutes, setMeetingMinutes] = useState<MeetingMinutes[]>([]);
   const [teamMembers, setTeamMembers] = useState<{id: number, name: string, role: string}[]>([]);
@@ -69,6 +72,8 @@ const Documents: React.FC = () => {
 
   // データをサーバーから取得
   const loadDataFromServer = async () => {
+    if (!isAuthenticated) return;
+    
     try {
       const [docsResponse, minutesResponse, membersResponse] = await Promise.all([
         ApiService.getData(STORAGE_KEYS.DOCUMENTS_DATA),
@@ -98,26 +103,56 @@ const Documents: React.FC = () => {
   };
 
   useEffect(() => {
-    const savedDocs = LocalStorage.get<Document[]>(STORAGE_KEYS.DOCUMENTS_DATA);
-    const savedMinutes = LocalStorage.get<MeetingMinutes[]>(STORAGE_KEYS.MEETING_MINUTES);
-    const savedMembers = LocalStorage.get<{id: number, name: string, role: string}[]>(STORAGE_KEYS.TEAM_MEMBERS);
-    
-    if (savedDocs && savedDocs.length > 0) {
-      setDocuments(savedDocs);
+    if (isAuthenticated) {
+      // サーバーから取得（優先）
+      loadDataFromServer();
+      
+      // Socket.io接続
+      if (user?.teamId) {
+        SocketService.connect(user.teamId);
+        
+        // リアルタイム更新のリスナーを設定
+        const handleDataUpdate = (data: any) => {
+          const { dataType, data: newData } = data;
+          
+          if (dataType === STORAGE_KEYS.DOCUMENTS_DATA) {
+            setDocuments(newData);
+            LocalStorage.set(STORAGE_KEYS.DOCUMENTS_DATA, newData);
+          } else if (dataType === STORAGE_KEYS.MEETING_MINUTES) {
+            setMeetingMinutes(newData);
+            LocalStorage.set(STORAGE_KEYS.MEETING_MINUTES, newData);
+          } else if (dataType === STORAGE_KEYS.TEAM_MEMBERS) {
+            setTeamMembers(newData);
+            LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, newData);
+          }
+        };
+        
+        SocketService.on('dataUpdated', handleDataUpdate);
+        
+        return () => {
+          SocketService.off('dataUpdated', handleDataUpdate);
+        };
+      }
+    } else {
+      // 非認証時はローカルストレージから読み込み
+      const savedDocs = LocalStorage.get<Document[]>(STORAGE_KEYS.DOCUMENTS_DATA);
+      const savedMinutes = LocalStorage.get<MeetingMinutes[]>(STORAGE_KEYS.MEETING_MINUTES);
+      const savedMembers = LocalStorage.get<{id: number, name: string, role: string}[]>(STORAGE_KEYS.TEAM_MEMBERS);
+      
+      if (savedDocs && savedDocs.length > 0) {
+        setDocuments(savedDocs);
+      }
+      if (savedMinutes && savedMinutes.length > 0) {
+        setMeetingMinutes(savedMinutes);
+      }
+      if (savedMembers && savedMembers.length > 0) {
+        setTeamMembers(savedMembers);
+      }
     }
-    if (savedMinutes && savedMinutes.length > 0) {
-      setMeetingMinutes(savedMinutes);
-    }
-    if (savedMembers && savedMembers.length > 0) {
-      setTeamMembers(savedMembers);
-    }
-    
-    // サーバーからも取得を試みる
-    loadDataFromServer();
-  }, []);
+  }, [isAuthenticated, user?.teamId]);
 
 
-  const addMeetingMinutes = () => {
+  const addMeetingMinutes = async () => {
     if (newMinutes.title && newMinutes.date && newMinutes.attendees && newMinutes.attendees.length > 0) {
       let updatedMinutes;
       let updatedDocs;
@@ -207,6 +242,20 @@ const Documents: React.FC = () => {
       setDocuments(updatedDocs);
       LocalStorage.set(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
       
+      // サーバーに保存
+      try {
+        await ApiService.saveData(STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
+        await ApiService.saveData(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
+        
+        // Socket.ioで他のクライアントに通知
+        if (user?.teamId) {
+          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
+          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
+        }
+      } catch (error) {
+        console.error('議事録・資料データの保存に失敗しましたが、LocalStorageには保存済みです');
+      }
+      
       setNewMinutes({ 
         attendees: [], 
         agenda: [], 
@@ -260,7 +309,7 @@ const Documents: React.FC = () => {
     }
   };
 
-  const addComment = () => {
+  const addComment = async () => {
     if (selectedDoc && newComment.trim()) {
       const updatedDocs = documents.map(doc => {
         if (doc.id === selectedDoc.id) {
@@ -270,7 +319,7 @@ const Documents: React.FC = () => {
               ...doc.comments,
               {
                 id: doc.comments.length + 1,
-                author: '現在のユーザー',
+                author: user?.username || '現在のユーザー',
                 text: newComment,
                 timestamp: new Date().toLocaleString('ja-JP')
               }
@@ -281,6 +330,19 @@ const Documents: React.FC = () => {
       });
       setDocuments(updatedDocs);
       LocalStorage.set(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
+      
+      // サーバーに保存
+      try {
+        await ApiService.saveData(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
+        
+        // Socket.ioで他のクライアントに通知
+        if (user?.teamId) {
+          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
+        }
+      } catch (error) {
+        console.error('コメントデータの保存に失敗しましたが、LocalStorageには保存済みです');
+      }
+      
       setSelectedDoc(updatedDocs.find(d => d.id === selectedDoc.id) || null);
       setNewComment('');
     }
@@ -312,18 +374,37 @@ const Documents: React.FC = () => {
     }
   };
 
-  const deleteDocument = (docId: number) => {
+  const deleteDocument = async (docId: number) => {
     const doc = documents.find(d => d.id === docId);
     if (doc && window.confirm(`「${doc.name}」を削除してもよろしいですか？`)) {
       const updatedDocs = documents.filter(d => d.id !== docId);
       setDocuments(updatedDocs);
       LocalStorage.set(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
       
+      let updatedMinutes = meetingMinutes;
       // 議事録の場合は会議録も削除（IDで特定）
       if (doc.type === '議事録') {
-        const updatedMinutes = meetingMinutes.filter(m => m.id !== docId);
+        updatedMinutes = meetingMinutes.filter(m => m.id !== docId);
         setMeetingMinutes(updatedMinutes);
         LocalStorage.set(STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
+      }
+      
+      // サーバーに保存
+      try {
+        await ApiService.saveData(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
+        if (doc.type === '議事録') {
+          await ApiService.saveData(STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
+        }
+        
+        // Socket.ioで他のクライアントに通知
+        if (user?.teamId) {
+          SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
+          if (doc.type === '議事録') {
+            SocketService.sendDataUpdate(user.teamId, STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
+          }
+        }
+      } catch (error) {
+        console.error('資料・議事録データの削除に失敗しましたが、LocalStorageには保存済みです');
       }
       
       if (selectedDoc?.id === docId) {

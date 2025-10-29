@@ -162,6 +162,12 @@ const Dashboard: React.FC = () => {
       console.log('サーバーへの保存を開始:', dataType, data.length || 'N/A', '件');
       const result = await ApiService.saveData(dataType, data);
       console.log('サーバーへの保存が成功しました:', dataType);
+      
+      // Socket.ioで他のクライアントに通知
+      if (user?.teamId) {
+        SocketService.sendDataUpdate(user.teamId, dataType, data);
+      }
+      
       return result;
     } catch (error: any) {
       console.error('サーバーへのデータ保存エラー:', error);
@@ -190,7 +196,7 @@ const Dashboard: React.FC = () => {
           const { dataType, data: newData, userId } = data;
           
           // 現在のユーザー自身の変更は無視（LocalStorage優先）
-          if (userId === user?.userId) {
+          if (userId === user?.id) {
             return;
           }
           
@@ -387,28 +393,42 @@ const Dashboard: React.FC = () => {
     setShowMemberModal(true);
   };
 
-  const deleteMember = (memberId: number) => {
+  const deleteMember = async (memberId: number) => {
     const member = teamMembers.find(m => m.id === memberId);
     if (member && window.confirm(`${member.name}を削除してもよろしいですか？`)) {
       const updatedMembers = teamMembers.filter(m => m.id !== memberId);
       setTeamMembers(updatedMembers);
       LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, updatedMembers);
       
+      // サーバーに保存
+      try {
+        await saveDataToServer(STORAGE_KEYS.TEAM_MEMBERS, updatedMembers);
+      } catch (error) {
+        console.error('チームメンバーの削除に失敗しましたが、LocalStorageには保存済みです');
+      }
+      
       // アクティビティに追加
       const activity: Activity = {
         id: Date.now(),
         type: 'task',
         title: `チームメンバー「${member.name}」を削除`,
-        user: 'システム',
+        user: user?.username || 'システム',
         timestamp: new Date().toLocaleString('ja-JP')
       };
       const updatedActivities = [activity, ...activities.slice(0, 9)];
       setActivities(updatedActivities);
       LocalStorage.set(STORAGE_KEYS.ACTIVITIES, updatedActivities);
+      
+      // アクティビティもサーバーに保存
+      try {
+        await saveDataToServer(STORAGE_KEYS.ACTIVITIES, updatedActivities);
+      } catch (error) {
+        console.error('アクティビティの保存に失敗しましたが、LocalStorageには保存済みです');
+      }
     }
   };
 
-  const addMeeting = () => {
+  const addMeeting = async () => {
     if (newMeeting.title && newMeeting.date && newMeeting.time) {
       const meeting: Meeting = {
         id: Date.now(),
@@ -422,6 +442,14 @@ const Dashboard: React.FC = () => {
       const updatedMeetings = [...meetings, meeting];
       setMeetings(updatedMeetings);
       LocalStorage.set(STORAGE_KEYS.MEETINGS, updatedMeetings);
+      
+      // サーバーに保存
+      try {
+        await saveDataToServer(STORAGE_KEYS.MEETINGS, updatedMeetings);
+      } catch (error) {
+        console.error('会議データの保存に失敗しましたが、LocalStorageには保存済みです');
+      }
+      
       setNewMeeting({ title: '', date: '', time: '', link: '', attendees: '' });
       setShowMeetingModal(false);
       
@@ -430,13 +458,20 @@ const Dashboard: React.FC = () => {
         id: Date.now(),
         type: 'meeting',
         title: `会議「${newMeeting.title}」をスケジュール`,
-        user: 'システム',
+        user: user?.username || 'システム',
         timestamp: new Date().toLocaleString('ja-JP'),
         description: `${newMeeting.date} ${newMeeting.time}`
       };
       const updatedActivities = [activity, ...activities.slice(0, 9)];
       setActivities(updatedActivities);
       LocalStorage.set(STORAGE_KEYS.ACTIVITIES, updatedActivities);
+      
+      // アクティビティもサーバーに保存
+      try {
+        await saveDataToServer(STORAGE_KEYS.ACTIVITIES, updatedActivities);
+      } catch (error) {
+        console.error('アクティビティの保存に失敗しましたが、LocalStorageには保存済みです');
+      }
     }
   };
 
