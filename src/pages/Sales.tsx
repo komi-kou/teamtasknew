@@ -105,35 +105,45 @@ const Sales: React.FC = () => {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user?.teamId) {
       // サーバーから取得（優先）
-      loadDataFromServer();
+      loadDataFromServer().catch(() => {
+        // サーバーから取得失敗時はLocalStorageから読み込み
+        console.log('サーバーからのデータ取得に失敗したため、LocalStorageから読み込みます');
+        const savedLeads = LocalStorage.get<Lead[]>(STORAGE_KEYS.LEADS_DATA);
+        if (savedLeads && savedLeads.length > 0) {
+          setLeads(savedLeads);
+        }
+        setIsLoading(false);
+      });
       
       // Socket.io接続
-      if (user?.teamId) {
-        SocketService.connect(user.teamId);
+      SocketService.connect(user.teamId);
+      
+      // リアルタイム更新のリスナーを設定（他のユーザーの変更のみ適用）
+      const handleDataUpdate = (data: any) => {
+        console.log('Real-time data update received:', data);
+        const { dataType, data: newData, userId } = data;
         
-        // リアルタイム更新のリスナーを設定（他のユーザーの変更のみ適用）
-        const handleDataUpdate = (data: any) => {
-          const { dataType, data: newData, userId } = data;
-          
-          // 現在のユーザー自身の変更は無視（LocalStorage優先）
-          if (userId === user?.id) {
-            return;
-          }
-          
-          if (dataType === STORAGE_KEYS.LEADS_DATA) {
-            setLeads(newData);
-            LocalStorage.set(STORAGE_KEYS.LEADS_DATA, newData);
-          }
-        };
+        // 現在のユーザー自身の変更は無視（LocalStorage優先）
+        if (userId === user?.id) {
+          console.log('Ignoring own update from user:', userId);
+          return;
+        }
         
-        SocketService.on('dataUpdated', handleDataUpdate);
+        console.log('Applying update from user:', userId, 'dataType:', dataType);
         
-        return () => {
-          SocketService.off('dataUpdated', handleDataUpdate);
-        };
-      }
+        if (dataType === STORAGE_KEYS.LEADS_DATA) {
+          setLeads(newData);
+          LocalStorage.set(STORAGE_KEYS.LEADS_DATA, newData);
+        }
+      };
+      
+      SocketService.on('dataUpdated', handleDataUpdate);
+      
+      return () => {
+        SocketService.off('dataUpdated', handleDataUpdate);
+      };
     } else {
       // 非認証時はローカルストレージから読み込み
       const savedLeads = LocalStorage.get<Lead[]>(STORAGE_KEYS.LEADS_DATA);
@@ -142,7 +152,7 @@ const Sales: React.FC = () => {
       }
       setIsLoading(false);
     }
-  }, [isAuthenticated, user?.teamId]);
+  }, [isAuthenticated, user?.teamId, user?.id]);
 
   const addLead = async () => {
     if (newLead.company && newLead.contact && newLead.value) {

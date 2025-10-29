@@ -103,41 +103,58 @@ const Documents: React.FC = () => {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user?.teamId) {
       // サーバーから取得（優先）
-      loadDataFromServer();
+      loadDataFromServer().catch(() => {
+        // サーバーから取得失敗時はLocalStorageから読み込み
+        console.log('サーバーからのデータ取得に失敗したため、LocalStorageから読み込みます');
+        const savedDocs = LocalStorage.get<Document[]>(STORAGE_KEYS.DOCUMENTS_DATA);
+        const savedMinutes = LocalStorage.get<MeetingMinutes[]>(STORAGE_KEYS.MEETING_MINUTES);
+        const savedMembers = LocalStorage.get<{id: number, name: string, role: string}[]>(STORAGE_KEYS.TEAM_MEMBERS);
+        if (savedDocs && savedDocs.length > 0) {
+          setDocuments(savedDocs);
+        }
+        if (savedMinutes && savedMinutes.length > 0) {
+          setMeetingMinutes(savedMinutes);
+        }
+        if (savedMembers && savedMembers.length > 0) {
+          setTeamMembers(savedMembers);
+        }
+      });
       
       // Socket.io接続
-      if (user?.teamId) {
-        SocketService.connect(user.teamId);
+      SocketService.connect(user.teamId);
+      
+      // リアルタイム更新のリスナーを設定（他のユーザーの変更のみ適用）
+      const handleDataUpdate = (data: any) => {
+        console.log('Real-time data update received:', data);
+        const { dataType, data: newData, userId } = data;
         
-        // リアルタイム更新のリスナーを設定（他のユーザーの変更のみ適用）
-        const handleDataUpdate = (data: any) => {
-          const { dataType, data: newData, userId } = data;
-          
-          // 現在のユーザー自身の変更は無視（LocalStorage優先）
-          if (userId === user?.id) {
-            return;
-          }
-          
-          if (dataType === STORAGE_KEYS.DOCUMENTS_DATA) {
-            setDocuments(newData);
-            LocalStorage.set(STORAGE_KEYS.DOCUMENTS_DATA, newData);
-          } else if (dataType === STORAGE_KEYS.MEETING_MINUTES) {
-            setMeetingMinutes(newData);
-            LocalStorage.set(STORAGE_KEYS.MEETING_MINUTES, newData);
-          } else if (dataType === STORAGE_KEYS.TEAM_MEMBERS) {
-            setTeamMembers(newData);
-            LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, newData);
-          }
-        };
+        // 現在のユーザー自身の変更は無視（LocalStorage優先）
+        if (userId === user?.id) {
+          console.log('Ignoring own update from user:', userId);
+          return;
+        }
         
-        SocketService.on('dataUpdated', handleDataUpdate);
+        console.log('Applying update from user:', userId, 'dataType:', dataType);
         
-        return () => {
-          SocketService.off('dataUpdated', handleDataUpdate);
-        };
-      }
+        if (dataType === STORAGE_KEYS.DOCUMENTS_DATA) {
+          setDocuments(newData);
+          LocalStorage.set(STORAGE_KEYS.DOCUMENTS_DATA, newData);
+        } else if (dataType === STORAGE_KEYS.MEETING_MINUTES) {
+          setMeetingMinutes(newData);
+          LocalStorage.set(STORAGE_KEYS.MEETING_MINUTES, newData);
+        } else if (dataType === STORAGE_KEYS.TEAM_MEMBERS) {
+          setTeamMembers(newData);
+          LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, newData);
+        }
+      };
+      
+      SocketService.on('dataUpdated', handleDataUpdate);
+      
+      return () => {
+        SocketService.off('dataUpdated', handleDataUpdate);
+      };
     } else {
       // 非認証時はローカルストレージから読み込み
       const savedDocs = LocalStorage.get<Document[]>(STORAGE_KEYS.DOCUMENTS_DATA);
@@ -154,7 +171,7 @@ const Documents: React.FC = () => {
         setTeamMembers(savedMembers);
       }
     }
-  }, [isAuthenticated, user?.teamId]);
+  }, [isAuthenticated, user?.teamId, user?.id]);
 
 
   const addMeetingMinutes = async () => {

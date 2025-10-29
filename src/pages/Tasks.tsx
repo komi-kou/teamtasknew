@@ -44,29 +44,47 @@ const Tasks: React.FC = () => {
 
   // データをサーバーから取得
   const loadDataFromServer = async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      console.log('Not authenticated, skipping server data load');
+      return;
+    }
     
     try {
       setIsLoading(true);
+      console.log('Loading data from server...');
       const [tasksResponse, membersResponse] = await Promise.all([
         ApiService.getData(STORAGE_KEYS.TASKS_DATA),
         ApiService.getData(STORAGE_KEYS.TEAM_MEMBERS)
       ]);
       
+      let hasServerData = false;
+      
       // サーバーのデータを優先的に使用（常に最新の状態を保持）
-      if (tasksResponse.data && Array.isArray(tasksResponse.data)) {
+      if (tasksResponse.data && Array.isArray(tasksResponse.data) && tasksResponse.data.length > 0) {
         console.log('サーバーからのデータを適用:', tasksResponse.data.length, '件');
         setTasks(tasksResponse.data);
         LocalStorage.set(STORAGE_KEYS.TASKS_DATA, tasksResponse.data);
+        hasServerData = true;
       }
-      if (membersResponse.data && Array.isArray(membersResponse.data)) {
+      if (membersResponse.data && Array.isArray(membersResponse.data) && membersResponse.data.length > 0) {
         console.log('サーバーからのチームメンバーデータを適用:', membersResponse.data.length, '件');
         setTeamMembers(membersResponse.data);
         LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, membersResponse.data);
+        hasServerData = true;
+      }
+      
+      // サーバーにデータがない場合、LocalStorageからフォールバック
+      if (!hasServerData) {
+        console.log('サーバーにデータがないため、LocalStorageから読み込みます');
+        loadDataFromLocal();
       }
       
     } catch (error) {
       console.error('サーバーからのデータ取得エラー:', error);
+      // エラー時はLocalStorageから読み込み
+      console.log('エラーが発生したため、LocalStorageから読み込みます');
+      loadDataFromLocal();
+      throw error; // 呼び出し元でキャッチできるように
     } finally {
       setIsLoading(false);
     }
@@ -112,44 +130,51 @@ const Tasks: React.FC = () => {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user?.teamId) {
       // サーバーから取得（優先）
-      loadDataFromServer();
+      loadDataFromServer().catch(() => {
+        // サーバーから取得失敗時はLocalStorageから読み込み
+        console.log('サーバーからのデータ取得に失敗したため、LocalStorageから読み込みます');
+        loadDataFromLocal();
+        setIsLoading(false);
+      });
       
       // Socket.io接続
-      if (user?.teamId) {
-        SocketService.connect(user.teamId);
+      SocketService.connect(user.teamId);
+      
+      // リアルタイム更新のリスナーを設定（他のユーザーの変更のみ適用）
+      const handleDataUpdate = (data: any) => {
+        console.log('Real-time data update received:', data);
+        const { dataType, data: newData, userId } = data;
         
-        // リアルタイム更新のリスナーを設定（他のユーザーの変更のみ適用）
-        const handleDataUpdate = (data: any) => {
-          const { dataType, data: newData, userId } = data;
-          
-          // 現在のユーザー自身の変更は無視（LocalStorage優先）
-          if (userId === user?.id) {
-            return;
-          }
-          
-          if (dataType === STORAGE_KEYS.TASKS_DATA) {
-            setTasks(newData);
-            LocalStorage.set(STORAGE_KEYS.TASKS_DATA, newData);
-          } else if (dataType === STORAGE_KEYS.TEAM_MEMBERS) {
-            setTeamMembers(newData);
-            LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, newData);
-          }
-        };
+        // 現在のユーザー自身の変更は無視（LocalStorage優先）
+        if (userId === user?.id) {
+          console.log('Ignoring own update from user:', userId);
+          return;
+        }
         
-        SocketService.on('dataUpdated', handleDataUpdate);
+        console.log('Applying update from user:', userId, 'dataType:', dataType);
         
-        return () => {
-          SocketService.off('dataUpdated', handleDataUpdate);
-        };
-      }
+        if (dataType === STORAGE_KEYS.TASKS_DATA) {
+          setTasks(newData);
+          LocalStorage.set(STORAGE_KEYS.TASKS_DATA, newData);
+        } else if (dataType === STORAGE_KEYS.TEAM_MEMBERS) {
+          setTeamMembers(newData);
+          LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, newData);
+        }
+      };
+      
+      SocketService.on('dataUpdated', handleDataUpdate);
+      
+      return () => {
+        SocketService.off('dataUpdated', handleDataUpdate);
+      };
     } else {
       // 非認証時はローカルストレージから読み込み
       loadDataFromLocal();
       setIsLoading(false);
     }
-  }, [isAuthenticated, user?.teamId]);
+  }, [isAuthenticated, user?.teamId, user?.id]);
 
   const statusColumns = [
     { key: 'pending', label: '未着手', color: '#9E9E9E' },

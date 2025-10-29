@@ -123,38 +123,52 @@ const Projects: React.FC = () => {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user?.teamId) {
       // サーバーから取得（優先）
-      loadDataFromServer();
+      loadDataFromServer().catch(() => {
+        // サーバーから取得失敗時はLocalStorageから読み込み
+        console.log('サーバーからのデータ取得に失敗したため、LocalStorageから読み込みます');
+        const savedProjects = LocalStorage.get<Project[]>(STORAGE_KEYS.PROJECTS_DATA);
+        const savedMembers = LocalStorage.get<{id: number, name: string, role: string}[]>(STORAGE_KEYS.TEAM_MEMBERS);
+        if (savedProjects && savedProjects.length > 0) {
+          setProjects(savedProjects);
+        }
+        if (savedMembers && savedMembers.length > 0) {
+          setTeamMembers(savedMembers);
+        }
+        setIsLoading(false);
+      });
       
       // Socket.io接続
-      if (user?.teamId) {
-        SocketService.connect(user.teamId);
+      SocketService.connect(user.teamId);
+      
+      // リアルタイム更新のリスナーを設定（他のユーザーの変更のみ適用）
+      const handleDataUpdate = (data: any) => {
+        console.log('Real-time data update received:', data);
+        const { dataType, data: newData, userId } = data;
         
-        // リアルタイム更新のリスナーを設定（他のユーザーの変更のみ適用）
-        const handleDataUpdate = (data: any) => {
-          const { dataType, data: newData, userId } = data;
-          
-          // 現在のユーザー自身の変更は無視（LocalStorage優先）
-          if (userId === user?.id) {
-            return;
-          }
-          
-          if (dataType === STORAGE_KEYS.PROJECTS_DATA) {
-            setProjects(newData);
-            LocalStorage.set(STORAGE_KEYS.PROJECTS_DATA, newData);
-          } else if (dataType === STORAGE_KEYS.TEAM_MEMBERS) {
-            setTeamMembers(newData);
-            LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, newData);
-          }
-        };
+        // 現在のユーザー自身の変更は無視（LocalStorage優先）
+        if (userId === user?.id) {
+          console.log('Ignoring own update from user:', userId);
+          return;
+        }
         
-        SocketService.on('dataUpdated', handleDataUpdate);
+        console.log('Applying update from user:', userId, 'dataType:', dataType);
         
-        return () => {
-          SocketService.off('dataUpdated', handleDataUpdate);
-        };
-      }
+        if (dataType === STORAGE_KEYS.PROJECTS_DATA) {
+          setProjects(newData);
+          LocalStorage.set(STORAGE_KEYS.PROJECTS_DATA, newData);
+        } else if (dataType === STORAGE_KEYS.TEAM_MEMBERS) {
+          setTeamMembers(newData);
+          LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, newData);
+        }
+      };
+      
+      SocketService.on('dataUpdated', handleDataUpdate);
+      
+      return () => {
+        SocketService.off('dataUpdated', handleDataUpdate);
+      };
     } else {
       // 非認証時はローカルストレージから読み込み
       const savedProjects = LocalStorage.get<Project[]>(STORAGE_KEYS.PROJECTS_DATA);
@@ -168,7 +182,7 @@ const Projects: React.FC = () => {
       }
       setIsLoading(false);
     }
-  }, [isAuthenticated, user?.teamId]);
+  }, [isAuthenticated, user?.teamId, user?.id]);
 
   const addProject = async () => {
     if (newProject.name && newProject.client && newProject.startDate) {

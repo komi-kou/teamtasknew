@@ -70,47 +70,71 @@ const Dashboard: React.FC = () => {
 
   // データをサーバーから取得
   const loadDataFromServer = async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      console.log('Not authenticated, skipping server data load');
+      return;
+    }
     
     try {
       setIsLoading(true);
+      console.log('Loading data from server...');
       const response = await ApiService.getAllData();
       const serverData = response.data || {};
       
+      console.log('Server data received:', Object.keys(serverData));
+      
+      let hasServerData = false;
+      
       // サーバーのデータを優先的に使用（常に最新の状態を保持）
-      if (serverData.tasks && Array.isArray(serverData.tasks)) {
+      if (serverData.tasks && Array.isArray(serverData.tasks) && serverData.tasks.length > 0) {
         console.log('サーバーからのタスクデータを適用:', serverData.tasks.length, '件');
         setTasks(serverData.tasks);
         LocalStorage.set(STORAGE_KEYS.TASKS_DATA, serverData.tasks);
+        hasServerData = true;
       }
-      if (serverData.projects && Array.isArray(serverData.projects)) {
+      if (serverData.projects && Array.isArray(serverData.projects) && serverData.projects.length > 0) {
         console.log('サーバーからの案件データを適用:', serverData.projects.length, '件');
         setProjects(serverData.projects);
         LocalStorage.set(STORAGE_KEYS.PROJECTS_DATA, serverData.projects);
+        hasServerData = true;
       }
-      if (serverData.sales && Array.isArray(serverData.sales)) {
+      if (serverData.sales && Array.isArray(serverData.sales) && serverData.sales.length > 0) {
         console.log('サーバーからの売上データを適用:', serverData.sales.length, '件');
         setSalesData(serverData.sales);
         LocalStorage.set(STORAGE_KEYS.SALES_DATA, serverData.sales);
+        hasServerData = true;
       }
-      if (serverData.team_members && Array.isArray(serverData.team_members)) {
+      if (serverData.team_members && Array.isArray(serverData.team_members) && serverData.team_members.length > 0) {
         console.log('サーバーからのチームメンバーデータを適用:', serverData.team_members.length, '件');
         setTeamMembers(serverData.team_members);
         LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, serverData.team_members);
+        hasServerData = true;
       }
-      if (serverData.meetings && Array.isArray(serverData.meetings)) {
+      if (serverData.meetings && Array.isArray(serverData.meetings) && serverData.meetings.length > 0) {
         console.log('サーバーからの会議データを適用:', serverData.meetings.length, '件');
         setMeetings(serverData.meetings);
         LocalStorage.set(STORAGE_KEYS.MEETINGS, serverData.meetings);
+        hasServerData = true;
       }
-      if (serverData.activities && Array.isArray(serverData.activities)) {
+      if (serverData.activities && Array.isArray(serverData.activities) && serverData.activities.length > 0) {
         console.log('サーバーからのアクティビティデータを適用:', serverData.activities.length, '件');
         setActivities(serverData.activities);
         LocalStorage.set(STORAGE_KEYS.ACTIVITIES, serverData.activities);
+        hasServerData = true;
+      }
+      
+      // サーバーにデータがない場合、LocalStorageからフォールバック
+      if (!hasServerData) {
+        console.log('サーバーにデータがないため、LocalStorageから読み込みます');
+        loadDataFromLocal();
       }
       
     } catch (error) {
       console.error('サーバーからのデータ取得エラー:', error);
+      // エラー時はLocalStorageから読み込み
+      console.log('エラーが発生したため、LocalStorageから読み込みます');
+      loadDataFromLocal();
+      throw error; // 呼び出し元でキャッチできるように
     } finally {
       setIsLoading(false);
     }
@@ -178,66 +202,73 @@ const Dashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user?.teamId) {
       // サーバーから取得（優先）
-      loadDataFromServer();
+      loadDataFromServer().catch(() => {
+        // サーバーから取得失敗時はLocalStorageから読み込み
+        console.log('サーバーからのデータ取得に失敗したため、LocalStorageから読み込みます');
+        loadDataFromLocal();
+        setIsLoading(false);
+      });
       
       // Socket.io接続
-      if (user?.teamId) {
-        SocketService.connect(user.teamId);
+      SocketService.connect(user.teamId);
+      
+      // リアルタイム更新のリスナーを設定（他のユーザーの変更のみ適用）
+      const handleDataUpdate = (data: any) => {
+        console.log('Real-time data update received:', data);
+        const { dataType, data: newData, userId } = data;
         
-        // リアルタイム更新のリスナーを設定（他のユーザーの変更のみ適用）
-        const handleDataUpdate = (data: any) => {
-          console.log('Real-time data update:', data);
-          const { dataType, data: newData, userId } = data;
-          
-          // 現在のユーザー自身の変更は無視（LocalStorage優先）
-          if (userId === user?.id) {
-            return;
-          }
-          
-          // データタイプに応じて状態を更新
-          switch (dataType) {
-            case STORAGE_KEYS.SALES_DATA:
-              setSalesData(newData);
-              LocalStorage.set(STORAGE_KEYS.SALES_DATA, newData);
-              break;
-            case STORAGE_KEYS.TEAM_MEMBERS:
-              setTeamMembers(newData);
-              LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, newData);
-              break;
-            case STORAGE_KEYS.MEETINGS:
-              setMeetings(newData);
-              LocalStorage.set(STORAGE_KEYS.MEETINGS, newData);
-              break;
-            case STORAGE_KEYS.ACTIVITIES:
-              setActivities(newData);
-              LocalStorage.set(STORAGE_KEYS.ACTIVITIES, newData);
-              break;
-            case STORAGE_KEYS.PROJECTS_DATA:
-              setProjects(newData);
-              LocalStorage.set(STORAGE_KEYS.PROJECTS_DATA, newData);
-              break;
-            case STORAGE_KEYS.TASKS_DATA:
-              setTasks(newData);
-              LocalStorage.set(STORAGE_KEYS.TASKS_DATA, newData);
-              break;
-          }
-        };
+        // 最新のuserを参照するため、useEffectの依存配列にuserを含める
+        // 現在のユーザー自身の変更は無視（LocalStorage優先）
+        if (userId === user?.id) {
+          console.log('Ignoring own update from user:', userId);
+          return;
+        }
         
-        SocketService.on('dataUpdated', handleDataUpdate);
+        console.log('Applying update from user:', userId, 'dataType:', dataType);
         
-        // クリーンアップ関数
-        return () => {
-          SocketService.off('dataUpdated', handleDataUpdate);
-        };
-      }
+        // データタイプに応じて状態を更新
+        switch (dataType) {
+          case STORAGE_KEYS.SALES_DATA:
+            setSalesData(newData);
+            LocalStorage.set(STORAGE_KEYS.SALES_DATA, newData);
+            break;
+          case STORAGE_KEYS.TEAM_MEMBERS:
+            setTeamMembers(newData);
+            LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, newData);
+            break;
+          case STORAGE_KEYS.MEETINGS:
+            setMeetings(newData);
+            LocalStorage.set(STORAGE_KEYS.MEETINGS, newData);
+            break;
+          case STORAGE_KEYS.ACTIVITIES:
+            setActivities(newData);
+            LocalStorage.set(STORAGE_KEYS.ACTIVITIES, newData);
+            break;
+          case STORAGE_KEYS.PROJECTS_DATA:
+            setProjects(newData);
+            LocalStorage.set(STORAGE_KEYS.PROJECTS_DATA, newData);
+            break;
+          case STORAGE_KEYS.TASKS_DATA:
+            setTasks(newData);
+            LocalStorage.set(STORAGE_KEYS.TASKS_DATA, newData);
+            break;
+        }
+      };
+      
+      SocketService.on('dataUpdated', handleDataUpdate);
+      
+      // クリーンアップ関数
+      return () => {
+        SocketService.off('dataUpdated', handleDataUpdate);
+      };
     } else {
       // 非認証時はローカルストレージから読み込み
       loadDataFromLocal();
       setIsLoading(false);
     }
-  }, [isAuthenticated, user?.teamId]);
+  }, [isAuthenticated, user?.teamId, user?.id]);
 
   // 案件データから月別売上を生成
   const generateMonthlyRevenueFromProjects = (projects: Project[]) => {
