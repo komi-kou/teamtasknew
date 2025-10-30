@@ -46,20 +46,14 @@ class SocketService {
     // Handle data updates
     this.socket.on('data-updated', (data: any) => {
       console.log('Data updated:', data);
+      // LocalStorage への無差別保存は行わず、各ページ側のハンドラで必要なキーのみ保存する
       this.emit('dataUpdated', data);
-      // Update local storage
-      if (data.dataType && data.data) {
-        LocalStorage.set(data.dataType, data.data);
-      }
     });
 
     this.socket.on('data-deleted', (data: any) => {
       console.log('Data deleted:', data);
+      // LocalStorage の操作は各ページ側に委譲
       this.emit('dataDeleted', data);
-      // Remove from local storage
-      if (data.dataType) {
-        LocalStorage.remove(data.dataType);
-      }
     });
 
     return this.socket;

@@ -333,7 +333,13 @@ app.get('/api/data/:dataType', authenticateToken, async (req, res) => {
       'salesEmails': 'sales_emails'
     };
 
-    const fieldName = fieldMap[dataType] || dataType;
+    // dataType ホワイトリスト検証
+    if (!fieldMap.hasOwnProperty(dataType)) {
+      console.warn(`[API][GET] Invalid dataType requested: ${dataType}`);
+      return res.status(400).json({ data: [], message: `不正なdataTypeです: ${dataType}` });
+    }
+
+    const fieldName = fieldMap[dataType];
     const rawResult = data[fieldName];
     
     // JSONBデータをパース（文字列の場合のみ）
@@ -385,7 +391,13 @@ app.post('/api/data/:dataType', authenticateToken, async (req, res) => {
         'salesEmails': 'sales_emails'
       };
 
-    const fieldName = fieldMap[dataType] || dataType;
+    // dataType ホワイトリスト検証
+    if (!fieldMap.hasOwnProperty(dataType)) {
+      console.warn(`[API][POST] Invalid dataType received: ${dataType}`);
+      return res.status(400).json({ message: `不正なdataTypeです: ${dataType}` });
+    }
+
+    const fieldName = fieldMap[dataType];
     
     // データをJSON文字列として保存
     const jsonData = JSON.stringify(data);
@@ -517,7 +529,13 @@ io.on('connection', (socket) => {
         'salesEmails': 'sales_emails'
       };
     
-    const fieldName = fieldMap[dataType] || dataType;
+    // dataType ホワイトリスト検証（不正は無視してログ）
+    if (!fieldMap.hasOwnProperty(dataType)) {
+      console.warn(`[Socket] Invalid dataType received: ${dataType}`);
+      return;
+    }
+
+    const fieldName = fieldMap[dataType];
     const jsonData = JSON.stringify(newData);
     
     try {
