@@ -115,13 +115,10 @@ const Tasks: React.FC = () => {
     
     try {
       console.log('サーバーへの保存を開始:', dataType, data.length || 'N/A', '件');
+      // ApiService.saveDataは既にサーバー側でSocket.io通知を送信しているため、
+      // ここではSocketService.sendDataUpdateを呼び出す必要はない
       const result = await ApiService.saveData(dataType, data);
       console.log('サーバーへの保存が成功しました:', dataType);
-      
-      // Socket.ioで他のクライアントに通知
-      if (user?.teamId) {
-        SocketService.sendDataUpdate(user.teamId, dataType, data, user.id);
-      }
       
       return result;
     } catch (error: any) {
