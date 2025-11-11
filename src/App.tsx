@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import SocketService from './services/socket';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Documents from './pages/Documents';
@@ -30,6 +31,47 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 // メインアプリケーションコンポーネント
 const AppContent: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
+  const [socketStatus, setSocketStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
+
+  // Socket.io接続状態の監視
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setSocketStatus('disconnected');
+      return;
+    }
+
+    const checkConnection = () => {
+      if (SocketService.isConnected()) {
+        setSocketStatus('connected');
+      } else {
+        setSocketStatus('disconnected');
+      }
+    };
+
+    // 初回チェック
+    checkConnection();
+
+    // 定期的にチェック（1秒ごと）
+    const interval = setInterval(checkConnection, 1000);
+
+    // Socket.ioの接続イベントを監視
+    const handleConnect = () => {
+      setSocketStatus('connected');
+    };
+
+    const handleDisconnect = () => {
+      setSocketStatus('disconnected');
+    };
+
+    SocketService.on('connected', handleConnect);
+    SocketService.on('disconnected', handleDisconnect);
+
+    return () => {
+      clearInterval(interval);
+      SocketService.off('connected', handleConnect);
+      SocketService.off('disconnected', handleDisconnect);
+    };
+  }, [isAuthenticated]);
 
   // ログイン画面の場合はサイドバーを表示しない
   if (!isAuthenticated) {
@@ -56,6 +98,15 @@ const AppContent: React.FC = () => {
               {user.teamName && <p className="team-name">{user.teamName}</p>}
             </div>
           )}
+          {/* Socket.io接続状態の表示 */}
+          <div className={`socket-status ${socketStatus}`}>
+            <span className="status-indicator"></span>
+            <span className="status-text">
+              {socketStatus === 'connected' && 'リアルタイム同期: 接続中'}
+              {socketStatus === 'disconnected' && 'リアルタイム同期: 切断中'}
+              {socketStatus === 'connecting' && 'リアルタイム同期: 接続中...'}
+            </span>
+          </div>
         </div>
                <ul className="nav-menu">
                  <li><Link to="/">📊 全体ダッシュボード</Link></li>

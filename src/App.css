@@ -106,6 +106,70 @@
   color: #bdc3c7;
 }
 
+/* Socket.io接続状態のスタイル */
+.socket-status {
+  margin-top: 15px;
+  padding: 8px 12px;
+  border-radius: 5px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.socket-status.connected {
+  background-color: rgba(46, 204, 113, 0.2);
+  border: 1px solid rgba(46, 204, 113, 0.5);
+}
+
+.socket-status.disconnected {
+  background-color: rgba(231, 76, 60, 0.2);
+  border: 1px solid rgba(231, 76, 60, 0.5);
+}
+
+.socket-status.connecting {
+  background-color: rgba(241, 196, 15, 0.2);
+  border: 1px solid rgba(241, 196, 15, 0.5);
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.socket-status.connected .status-indicator {
+  background-color: #2ecc71;
+  box-shadow: 0 0 4px #2ecc71;
+}
+
+.socket-status.disconnected .status-indicator {
+  background-color: #e74c3c;
+  box-shadow: 0 0 4px #e74c3c;
+}
+
+.socket-status.connecting .status-indicator {
+  background-color: #f1c40f;
+  box-shadow: 0 0 4px #f1c40f;
+}
+
+.status-text {
+  font-size: 11px;
+  color: white;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 /* ログアウトボタンスタイル */
 .logout-section {
   margin-top: auto;

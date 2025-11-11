@@ -31,11 +31,20 @@ class SocketService {
     });
 
     this.socket.on('connect', () => {
-      console.log('Connected to server, teamId:', teamId);
+      console.log('✅ Socket.io接続成功, teamId:', teamId);
       if (teamId) {
         this.joinTeam(teamId);
-        console.log('Joined team:', teamId);
+        console.log('👥 チームに参加:', teamId);
       }
+      // 接続成功イベントを発火
+      this.emit('connected', { teamId });
+    });
+
+    // 接続エラーのハンドリング
+    this.socket.on('connect_error', (error) => {
+      console.error('❌ Socket.io接続エラー:', error.message);
+      console.error('   接続先URL:', SOCKET_URL);
+      console.error('   エラー詳細:', error);
     });
 
     // 再接続時にもルームに参加
@@ -46,8 +55,15 @@ class SocketService {
       }
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Disconnected from server');
+    this.socket.on('disconnect', (reason) => {
+      console.log('👋 Socket.io切断:', reason);
+      // 切断イベントを発火
+      this.emit('disconnected', { reason });
+      if (reason === 'io server disconnect') {
+        // サーバー側で切断された場合、手動で再接続
+        console.log('🔄 サーバー側で切断されたため、再接続を試みます...');
+        this.socket?.connect();
+      }
     });
 
     // Handle data updates

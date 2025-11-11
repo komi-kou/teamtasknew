@@ -15,10 +15,19 @@ const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || 'you
 // CORS設定（環境変数から動的に取得）
 const getAllowedOrigins = () => {
   if (process.env.NODE_ENV === 'production') {
-    // 本番環境: 環境変数から取得、なければデフォルト
-    const origins = process.env.ALLOWED_ORIGINS 
-      ? process.env.ALLOWED_ORIGINS.split(',')
-      : ['https://teamtask5.onrender.com'];
+    // 本番環境: 環境変数から取得
+    if (process.env.ALLOWED_ORIGINS) {
+      const origins = process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
+      console.log('✅ CORS設定: 環境変数から取得', origins);
+      return origins;
+    }
+    
+    // 環境変数が設定されていない場合、現在のホストから推測
+    // Renderの場合、同じサービス内でフロントエンドとバックエンドが同じドメインを使用
+    const renderUrl = process.env.RENDER_EXTERNAL_URL || 'https://teamtasknew.onrender.com';
+    const origins = [renderUrl];
+    console.log('⚠️ CORS設定: 環境変数未設定、デフォルト値を使用', origins);
+    console.log('💡 ヒント: ALLOWED_ORIGINS環境変数を設定してください（例: https://teamtasknew.onrender.com）');
     return origins;
   }
   // 開発環境
@@ -26,13 +35,33 @@ const getAllowedOrigins = () => {
 };
 
 const allowedOrigins = getAllowedOrigins();
+console.log('🌐 許可されたオリジン:', allowedOrigins);
 
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      // オリジンが指定されていない場合（同一オリジンリクエストなど）は許可
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      // 許可されたオリジンかチェック
+      if (allowedOrigins.includes(origin) || allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+        callback(null, true);
+      } else {
+        console.warn('⚠️ CORS拒否:', origin, '許可されたオリジン:', allowedOrigins);
+        callback(new Error('CORS policy violation'));
+      }
+    },
     methods: ["GET", "POST"],
-    credentials: true
-  }
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
+    exposedHeaders: ["Content-Type"]
+  },
+  // 接続タイムアウトの設定
+  connectTimeout: 45000,
+  // ポーリングの設定（WebSocketが失敗した場合のフォールバック）
+  transports: ['websocket', 'polling']
 });
 
 // Redisアダプターの設定（オプショナル、本番環境でマルチインスタンス対応）
@@ -532,19 +561,28 @@ if (process.env.NODE_ENV === 'production') {
 
 // Socket.io接続処理
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  const clientOrigin = socket.handshake.headers.origin || 'unknown';
+  console.log(`✅ User connected: ${socket.id} from ${clientOrigin}`);
+
+  // 接続エラーのハンドリング
+  socket.on('error', (error) => {
+    console.error(`❌ Socket error for ${socket.id}:`, error);
+  });
 
   socket.on('join-team', (teamId) => {
     if (teamId) {
       socket.join(teamId);
-      console.log(`User ${socket.id} joined team ${teamId}`);
+      console.log(`👥 User ${socket.id} joined team ${teamId}`);
       // ルーム内のクライアント数を確認（デバッグ用）
       const room = io.sockets.adapter.rooms.get(teamId);
       if (room) {
-        console.log(`Team ${teamId} now has ${room.size} connected clients`);
+        console.log(`📊 Team ${teamId} now has ${room.size} connected clients`);
+        // 各クライアントのIDをログ出力（デバッグ用）
+        const clients = Array.from(room);
+        console.log(`   Client IDs: ${clients.join(', ')}`);
       }
     } else {
-      console.warn(`User ${socket.id} attempted to join team without teamId`);
+      console.warn(`⚠️ User ${socket.id} attempted to join team without teamId`);
     }
   });
 
@@ -643,8 +681,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+  socket.on('disconnect', (reason) => {
+    console.log(`👋 User disconnected: ${socket.id}, reason: ${reason}`);
   });
 });
 
