@@ -33,6 +33,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const isAuthenticated = !!user;
 
+  // Socket.io接続の管理（認証状態に応じて自動接続/切断）
+  useEffect(() => {
+    if (isAuthenticated && user?.teamId) {
+      // 認証済みでteamIdがある場合、Socket.io接続を確立
+      console.log('Socket.io接続を確立:', user.teamId);
+      SocketService.connect(user.teamId);
+    } else {
+      // 認証されていない場合、Socket.io接続を切断
+      console.log('Socket.io接続を切断');
+      SocketService.disconnect();
+    }
+
+    // クリーンアップ関数
+    return () => {
+      // コンポーネントのアンマウント時は切断しない（他のページで使用中かもしれないため）
+    };
+  }, [isAuthenticated, user?.teamId]);
+
   // 初期化時にトークンをチェック
   useEffect(() => {
     const initializeAuth = async () => {

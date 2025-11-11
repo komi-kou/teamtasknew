@@ -234,20 +234,14 @@ const Dashboard: React.FC = () => {
       // Socket.io接続
       SocketService.connect(user.teamId);
       
-      // リアルタイム更新のリスナーを設定（他のユーザーの変更のみ適用）
+      // リアルタイム更新のリスナーを設定（サーバーからの更新を常に適用）
       const handleDataUpdate = (data: any) => {
         console.log('Real-time data update received:', data);
         const { dataType, data: newData, userId } = data;
         
-        // 最新のuserを参照するため、useEffectの依存配列にuserを含める
-        // 現在のユーザー自身の変更は無視（LocalStorage優先）
-        if (userId === user?.id) {
-          console.log('Ignoring own update from user:', userId);
-          return;
-        }
-        
         console.log('Applying update from user:', userId, 'dataType:', dataType);
         
+        // サーバーからの更新を常に適用（マルチインスタンス環境でも正しく動作）
         // データタイプに応じて状態を更新
         switch (dataType) {
           case STORAGE_KEYS.SALES_DATA:

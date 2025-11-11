@@ -12,10 +12,20 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || 'your-secret-key';
 
-// CORS設定
-const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? ['https://teamtask5.onrender.com']
-  : ['http://localhost:3000'];
+// CORS設定（環境変数から動的に取得）
+const getAllowedOrigins = () => {
+  if (process.env.NODE_ENV === 'production') {
+    // 本番環境: 環境変数から取得、なければデフォルト
+    const origins = process.env.ALLOWED_ORIGINS 
+      ? process.env.ALLOWED_ORIGINS.split(',')
+      : ['https://teamtask5.onrender.com'];
+    return origins;
+  }
+  // 開発環境
+  return ['http://localhost:3000', 'http://localhost:3001'];
+};
+
+const allowedOrigins = getAllowedOrigins();
 
 const io = new Server(server, {
   cors: {
@@ -24,6 +34,34 @@ const io = new Server(server, {
     credentials: true
   }
 });
+
+// Redisアダプターの設定（オプショナル、本番環境でマルチインスタンス対応）
+const setupRedisAdapter = async () => {
+  const REDIS_URL = process.env.REDIS_URL;
+  
+  if (REDIS_URL) {
+    try {
+      const { createAdapter } = require('@socket.io/redis-adapter');
+      const { createClient } = require('redis');
+      
+      const pubClient = createClient({ url: REDIS_URL });
+      const subClient = pubClient.duplicate();
+      
+      await Promise.all([pubClient.connect(), subClient.connect()]);
+      
+      io.adapter(createAdapter(pubClient, subClient));
+      console.log('✅ Redisアダプターが有効になりました（マルチインスタンス対応）');
+      
+      return true;
+    } catch (error) {
+      console.warn('⚠️ Redisアダプターの設定に失敗しました（通常モードで動作）:', error.message);
+      return false;
+    }
+  } else {
+    console.log('ℹ️ Redis URLが設定されていません（シングルインスタンスモード）');
+    return false;
+  }
+};
 
 // ミドルウェア
 app.use(cors({
@@ -617,11 +655,15 @@ const startServer = async () => {
     await initializeDatabase();
     console.log('データベース初期化完了');
     
+    // Redisアダプターの設定（マルチインスタンス対応）
+    await setupRedisAdapter();
+    
     // サーバー起動
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
       console.log(`API URL: http://localhost:${PORT}/api`);
       console.log(`Socket URL: http://localhost:${PORT}`);
+      console.log(`Allowed Origins: ${allowedOrigins.join(', ')}`);
     });
   } catch (error) {
     console.error('サーバー起動エラー:', error);

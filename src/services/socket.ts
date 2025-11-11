@@ -9,6 +9,13 @@ class SocketService {
   private currentTeamId: string | null = null;
 
   connect(teamId: string) {
+    // 既に同じteamIdで接続されている場合は再接続しない
+    if (this.socket && this.socket.connected && this.currentTeamId === teamId) {
+      console.log('Already connected to team:', teamId);
+      return this.socket;
+    }
+
+    // 既存の接続がある場合は切断
     if (this.socket) {
       this.disconnect();
     }
