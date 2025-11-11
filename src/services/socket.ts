@@ -7,6 +7,42 @@ class SocketService {
   private socket: Socket | null = null;
   private listeners: Map<string, Function[]> = new Map();
   private currentTeamId: string | null = null;
+  private eventListenersSetup: boolean = false; // イベントリスナーが設定済みかどうか
+
+  // イベントリスナーを一度だけ設定する
+  private setupEventListeners() {
+    if (!this.socket) {
+      return;
+    }
+
+    // 既存のリスナーを削除（重複を防ぐ）
+    this.socket.off('data-updated');
+    this.socket.off('data-deleted');
+
+    console.log('🔧 [SocketService] Setting up event listeners');
+
+    // Handle data updates
+    this.socket.on('data-updated', (data: any) => {
+      console.log('📥 [SocketService] data-updated event received:', data);
+      console.log('   - Full data object:', JSON.stringify(data, null, 2));
+      console.log('   - dataType:', data.dataType);
+      console.log('   - userId:', data.userId);
+      console.log('   - timestamp:', data.timestamp);
+      console.log('   - data:', data.data);
+      console.log('   - data length:', Array.isArray(data.data) ? data.data.length : 'N/A');
+      // LocalStorage への無差別保存は行わず、各ページ側のハンドラで必要なキーのみ保存する
+      this.emit('dataUpdated', data);
+    });
+
+    this.socket.on('data-deleted', (data: any) => {
+      console.log('📥 [SocketService] data-deleted event received:', data);
+      // LocalStorage の操作は各ページ側に委譲
+      this.emit('dataDeleted', data);
+    });
+
+    this.eventListenersSetup = true;
+    console.log('✅ [SocketService] Event listeners setup complete');
+  }
 
   connect(teamId: string) {
     // 既に同じteamIdで接続されている場合は再接続しない
@@ -21,6 +57,7 @@ class SocketService {
     }
 
     this.currentTeamId = teamId;
+    this.eventListenersSetup = false; // リセット
     this.socket = io(SOCKET_URL, {
       // Renderの無料プランではWebSocketが不安定な場合があるため、ポーリングを優先
       transports: ['polling', 'websocket'], // pollingを優先に変更
@@ -36,10 +73,17 @@ class SocketService {
       autoConnect: true,
     });
 
+    // イベントリスナーを設定（接続前に設定）
+    this.setupEventListeners();
+
     this.socket.on('connect', () => {
       console.log('✅ Socket.io接続成功, teamId:', teamId);
       console.log('   - Socket ID:', this.socket?.id);
       console.log('   - Transport:', this.socket?.io.engine.transport.name);
+      
+      // 接続後にイベントリスナーを再設定（念のため）
+      this.setupEventListeners();
+      
       if (teamId) {
         this.joinTeam(teamId);
         console.log('👥 チームに参加:', teamId);
@@ -67,7 +111,9 @@ class SocketService {
 
     // 再接続時にもルームに参加
     this.socket.on('reconnect', (attemptNumber) => {
-      console.log('Reconnected after', attemptNumber, 'attempts');
+      console.log('🔄 Reconnected after', attemptNumber, 'attempts');
+      // 再接続時にもイベントリスナーを再設定
+      this.setupEventListeners();
       if (teamId) {
         this.joinTeam(teamId);
       }
@@ -84,25 +130,6 @@ class SocketService {
       }
     });
 
-    // Handle data updates
-    this.socket.on('data-updated', (data: any) => {
-      console.log('📥 [SocketService] data-updated event received:', data);
-      console.log('   - Full data object:', JSON.stringify(data, null, 2));
-      console.log('   - dataType:', data.dataType);
-      console.log('   - userId:', data.userId);
-      console.log('   - timestamp:', data.timestamp);
-      console.log('   - data:', data.data);
-      console.log('   - data length:', Array.isArray(data.data) ? data.data.length : 'N/A');
-      // LocalStorage への無差別保存は行わず、各ページ側のハンドラで必要なキーのみ保存する
-      this.emit('dataUpdated', data);
-    });
-
-    this.socket.on('data-deleted', (data: any) => {
-      console.log('Data deleted:', data);
-      // LocalStorage の操作は各ページ側に委譲
-      this.emit('dataDeleted', data);
-    });
-
     return this.socket;
   }
 
@@ -110,6 +137,7 @@ class SocketService {
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
+      this.eventListenersSetup = false; // リセット
     }
   }
 
