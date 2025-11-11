@@ -88,6 +88,11 @@ const setupRedisAdapter = async () => {
     }
   } else {
     console.log('ℹ️ Redis URLが設定されていません（シングルインスタンスモード）');
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('⚠️⚠️⚠️ 警告: 本番環境でRedisアダプターが設定されていません！');
+      console.warn('⚠️⚠️⚠️ Renderなどのマルチインスタンス環境では、データ同期が正しく動作しない可能性があります。');
+      console.warn('⚠️⚠️⚠️ 解決策: RenderダッシュボードでRedisアドオンを追加してください。');
+    }
     return false;
   }
 };
@@ -526,15 +531,21 @@ app.post('/api/data/:dataType', authenticateToken, async (req, res) => {
     // Socket.ioでリアルタイム更新を通知
     const room = io.sockets.adapter.rooms.get(teamId);
     const clientCount = room ? room.size : 0;
-    console.log(`Sending data-updated event to team ${teamId} (${clientCount} connected clients)`);
+    console.log(`📤 [API] Sending data-updated event to team ${teamId}`);
+    console.log(`   - dataType: ${dataType}`);
+    console.log(`   - userId: ${userId}`);
+    console.log(`   - Connected clients: ${clientCount}`);
+    console.log(`   - Data length: ${Array.isArray(data) ? data.length : 'N/A'}`);
     
+    // クライアント側で使用するdataTypeをそのまま送信（fieldMapのキーを使用）
     io.to(teamId).emit('data-updated', {
-      dataType,
+      dataType, // クライアント側で使用するdataType（例: 'tasksData'）
       data,
-      userId
+      userId,
+      timestamp: new Date().toISOString()
     });
     
-    console.log(`Data-updated event sent for ${dataType} to team ${teamId}`);
+    console.log(`✅ [API] Data-updated event sent for ${dataType} to team ${teamId}`);
 
     res.json({ success: true });
   } catch (error) {
@@ -580,6 +591,13 @@ io.on('connection', (socket) => {
         // 各クライアントのIDをログ出力（デバッグ用）
         const clients = Array.from(room);
         console.log(`   Client IDs: ${clients.join(', ')}`);
+        
+        // マルチインスタンス環境の警告
+        if (process.env.NODE_ENV === 'production' && !process.env.REDIS_URL) {
+          console.warn(`⚠️ 警告: Redisアダプターが設定されていないため、他のインスタンスのクライアントには接続情報が共有されません`);
+        }
+      } else {
+        console.warn(`⚠️ Team ${teamId} のルームが見つかりません`);
       }
     } else {
       console.warn(`⚠️ User ${socket.id} attempted to join team without teamId`);
@@ -671,11 +689,21 @@ io.on('connection', (socket) => {
       );
       const room = io.sockets.adapter.rooms.get(teamId);
       const clientCount = room ? room.size : 0;
-      console.log(`[Socket] Sending data-updated event to team ${teamId} (${clientCount} connected clients)`);
+      console.log(`📤 [Socket] Sending data-updated event to team ${teamId}`);
+      console.log(`   - dataType: ${dataType}`);
+      console.log(`   - userId: ${userId}`);
+      console.log(`   - Connected clients: ${clientCount}`);
+      console.log(`   - Data length: ${Array.isArray(newData) ? newData.length : 'N/A'}`);
       
-      io.to(teamId).emit('data-updated', { dataType, data: newData, userId });
+      // クライアント側で使用するdataTypeをそのまま送信（fieldMapのキーを使用）
+      io.to(teamId).emit('data-updated', { 
+        dataType, // クライアント側で使用するdataType（例: 'tasksData'）
+        data: newData, 
+        userId,
+        timestamp: new Date().toISOString()
+      });
       
-      console.log(`[Socket] Data-updated event sent for ${dataType} to team ${teamId}`);
+      console.log(`✅ [Socket] Data-updated event sent for ${dataType} to team ${teamId}`);
     } catch (error) {
       console.error('Socket data update error:', error);
     }

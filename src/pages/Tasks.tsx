@@ -144,18 +144,27 @@ const Tasks: React.FC = () => {
       
       // リアルタイム更新のリスナーを設定（サーバーからの更新を常に適用）
       const handleDataUpdate = (data: any) => {
-        console.log('Real-time data update received:', data);
-        const { dataType, data: newData, userId } = data;
+        console.log('📥 [Tasks] Real-time data update received:', data);
+        const { dataType, data: newData, userId, timestamp } = data;
         
-        console.log('Applying update from user:', userId, 'dataType:', dataType);
+        console.log(`   - dataType: ${dataType}`);
+        console.log(`   - Expected: ${STORAGE_KEYS.TASKS_DATA}`);
+        console.log(`   - Match: ${dataType === STORAGE_KEYS.TASKS_DATA}`);
+        console.log(`   - userId: ${userId}`);
+        console.log(`   - timestamp: ${timestamp}`);
+        console.log(`   - Data length: ${Array.isArray(newData) ? newData.length : 'N/A'}`);
         
         // サーバーからの更新を常に適用（マルチインスタンス環境でも正しく動作）
         if (dataType === STORAGE_KEYS.TASKS_DATA) {
+          console.log('✅ [Tasks] Applying tasks update');
           setTasks(newData);
           LocalStorage.set(STORAGE_KEYS.TASKS_DATA, newData);
         } else if (dataType === STORAGE_KEYS.TEAM_MEMBERS) {
+          console.log('✅ [Tasks] Applying team members update');
           setTeamMembers(newData);
           LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, newData);
+        } else {
+          console.log(`⚠️ [Tasks] Ignoring update for dataType: ${dataType}`);
         }
       };
       

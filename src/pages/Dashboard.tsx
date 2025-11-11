@@ -236,38 +236,49 @@ const Dashboard: React.FC = () => {
       
       // リアルタイム更新のリスナーを設定（サーバーからの更新を常に適用）
       const handleDataUpdate = (data: any) => {
-        console.log('Real-time data update received:', data);
-        const { dataType, data: newData, userId } = data;
+        console.log('📥 [Dashboard] Real-time data update received:', data);
+        const { dataType, data: newData, userId, timestamp } = data;
         
-        console.log('Applying update from user:', userId, 'dataType:', dataType);
+        console.log(`   - dataType: ${dataType}`);
+        console.log(`   - userId: ${userId}`);
+        console.log(`   - timestamp: ${timestamp}`);
+        console.log(`   - Data length: ${Array.isArray(newData) ? newData.length : 'N/A'}`);
         
         // サーバーからの更新を常に適用（マルチインスタンス環境でも正しく動作）
         // データタイプに応じて状態を更新
         switch (dataType) {
           case STORAGE_KEYS.SALES_DATA:
+            console.log('✅ [Dashboard] Applying sales data update');
             setSalesData(newData);
             LocalStorage.set(STORAGE_KEYS.SALES_DATA, newData);
             break;
           case STORAGE_KEYS.TEAM_MEMBERS:
+            console.log('✅ [Dashboard] Applying team members update');
             setTeamMembers(newData);
             LocalStorage.set(STORAGE_KEYS.TEAM_MEMBERS, newData);
             break;
           case STORAGE_KEYS.MEETINGS:
+            console.log('✅ [Dashboard] Applying meetings update');
             setMeetings(newData);
             LocalStorage.set(STORAGE_KEYS.MEETINGS, newData);
             break;
           case STORAGE_KEYS.ACTIVITIES:
+            console.log('✅ [Dashboard] Applying activities update');
             setActivities(newData);
             LocalStorage.set(STORAGE_KEYS.ACTIVITIES, newData);
             break;
           case STORAGE_KEYS.PROJECTS_DATA:
+            console.log('✅ [Dashboard] Applying projects update');
             setProjects(newData);
             LocalStorage.set(STORAGE_KEYS.PROJECTS_DATA, newData);
             break;
           case STORAGE_KEYS.TASKS_DATA:
+            console.log('✅ [Dashboard] Applying tasks update');
             setTasks(newData);
             LocalStorage.set(STORAGE_KEYS.TASKS_DATA, newData);
             break;
+          default:
+            console.log(`⚠️ [Dashboard] Ignoring update for dataType: ${dataType}`);
         }
       };
       
