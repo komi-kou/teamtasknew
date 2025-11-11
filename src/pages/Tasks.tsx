@@ -270,9 +270,11 @@ const Tasks: React.FC = () => {
       
       // サーバーに保存
       try {
+        console.log('💾 [Tasks] タスクをサーバーに保存開始:', updatedTasks.length, '件');
         await saveDataToServer(STORAGE_KEYS.TASKS_DATA, updatedTasks);
+        console.log('✅ [Tasks] タスクの保存が成功しました');
       } catch (error) {
-        console.error('タスクの保存に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [Tasks] タスクの保存に失敗しましたが、LocalStorageには保存済みです:', error);
       }
       
       setNewTask({ status: 'pending', priority: 'medium', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });

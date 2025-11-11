@@ -38,12 +38,21 @@ class SocketService {
 
     this.socket.on('connect', () => {
       console.log('✅ Socket.io接続成功, teamId:', teamId);
+      console.log('   - Socket ID:', this.socket?.id);
+      console.log('   - Transport:', this.socket?.io.engine.transport.name);
       if (teamId) {
         this.joinTeam(teamId);
         console.log('👥 チームに参加:', teamId);
       }
       // 接続成功イベントを発火
       this.emit('connected', { teamId });
+    });
+    
+    // チーム参加確認
+    this.socket.on('team-joined', (data: any) => {
+      console.log('✅ [SocketService] チーム参加確認:', data);
+      console.log('   - teamId:', data.teamId);
+      console.log('   - socketId:', data.socketId);
     });
 
     // 接続エラーのハンドリング

@@ -536,21 +536,34 @@ app.post('/api/data/:dataType', authenticateToken, async (req, res) => {
     // Socket.ioでリアルタイム更新を通知
     const room = io.sockets.adapter.rooms.get(teamId);
     const clientCount = room ? room.size : 0;
+    const clients = room ? Array.from(room) : [];
+    
     console.log(`📤 [API] Sending data-updated event to team ${teamId}`);
     console.log(`   - dataType: ${dataType}`);
     console.log(`   - userId: ${userId}`);
     console.log(`   - Connected clients: ${clientCount}`);
+    console.log(`   - Client IDs: ${clients.join(', ')}`);
     console.log(`   - Data length: ${Array.isArray(data) ? data.length : 'N/A'}`);
+    console.log(`   - All rooms: ${Array.from(io.sockets.adapter.rooms.keys()).join(', ')}`);
+    
+    if (clientCount === 0) {
+      console.warn(`⚠️ [API] 警告: チーム ${teamId} に接続しているクライアントが0です！`);
+      console.warn(`⚠️ [API] イベントは送信されますが、誰も受信しません。`);
+    }
     
     // クライアント側で使用するdataTypeをそのまま送信（fieldMapのキーを使用）
-    io.to(teamId).emit('data-updated', {
+    const eventData = {
       dataType, // クライアント側で使用するdataType（例: 'tasksData'）
       data,
       userId,
       timestamp: new Date().toISOString()
-    });
+    };
     
-    console.log(`✅ [API] Data-updated event sent for ${dataType} to team ${teamId}`);
+    console.log(`   - Event data:`, JSON.stringify(eventData, null, 2).substring(0, 500));
+    
+    io.to(teamId).emit('data-updated', eventData);
+    
+    console.log(`✅ [API] Data-updated event sent for ${dataType} to team ${teamId} (${clientCount} clients)`);
 
     res.json({ success: true });
   } catch (error) {
@@ -589,13 +602,18 @@ io.on('connection', (socket) => {
     if (teamId) {
       socket.join(teamId);
       console.log(`👥 User ${socket.id} joined team ${teamId}`);
+      
       // ルーム内のクライアント数を確認（デバッグ用）
       const room = io.sockets.adapter.rooms.get(teamId);
       if (room) {
-        console.log(`📊 Team ${teamId} now has ${room.size} connected clients`);
-        // 各クライアントのIDをログ出力（デバッグ用）
         const clients = Array.from(room);
+        console.log(`📊 Team ${teamId} now has ${room.size} connected clients`);
         console.log(`   Client IDs: ${clients.join(', ')}`);
+        console.log(`   Socket ID: ${socket.id}`);
+        console.log(`   Is socket in room? ${room.has(socket.id)}`);
+        
+        // 全ルームの情報を出力（デバッグ用）
+        console.log(`   All rooms:`, Array.from(io.sockets.adapter.rooms.keys()));
         
         // マルチインスタンス環境の警告
         if (process.env.NODE_ENV === 'production' && !process.env.REDIS_URL) {
@@ -604,6 +622,9 @@ io.on('connection', (socket) => {
       } else {
         console.warn(`⚠️ Team ${teamId} のルームが見つかりません`);
       }
+      
+      // 参加確認のため、クライアントに確認メッセージを送信
+      socket.emit('team-joined', { teamId, socketId: socket.id });
     } else {
       console.warn(`⚠️ User ${socket.id} attempted to join team without teamId`);
     }
@@ -694,21 +715,33 @@ io.on('connection', (socket) => {
       );
       const room = io.sockets.adapter.rooms.get(teamId);
       const clientCount = room ? room.size : 0;
+      const clients = room ? Array.from(room) : [];
       console.log(`📤 [Socket] Sending data-updated event to team ${teamId}`);
       console.log(`   - dataType: ${dataType}`);
       console.log(`   - userId: ${userId}`);
       console.log(`   - Connected clients: ${clientCount}`);
+      console.log(`   - Client IDs: ${clients.join(', ')}`);
       console.log(`   - Data length: ${Array.isArray(newData) ? newData.length : 'N/A'}`);
+      console.log(`   - All rooms: ${Array.from(io.sockets.adapter.rooms.keys()).join(', ')}`);
+      
+      if (clientCount === 0) {
+        console.warn(`⚠️ [Socket] 警告: チーム ${teamId} に接続しているクライアントが0です！`);
+        console.warn(`⚠️ [Socket] イベントは送信されますが、誰も受信しません。`);
+      }
       
       // クライアント側で使用するdataTypeをそのまま送信（fieldMapのキーを使用）
-      io.to(teamId).emit('data-updated', { 
+      const eventData = {
         dataType, // クライアント側で使用するdataType（例: 'tasksData'）
         data: newData, 
         userId,
         timestamp: new Date().toISOString()
-      });
+      };
       
-      console.log(`✅ [Socket] Data-updated event sent for ${dataType} to team ${teamId}`);
+      console.log(`   - Event data:`, JSON.stringify(eventData, null, 2).substring(0, 500));
+      
+      io.to(teamId).emit('data-updated', eventData);
+      
+      console.log(`✅ [Socket] Data-updated event sent for ${dataType} to team ${teamId} (${clientCount} clients)`);
     } catch (error) {
       console.error('Socket data update error:', error);
     }
