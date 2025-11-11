@@ -171,13 +171,16 @@ const Tasks: React.FC = () => {
       SocketService.on('dataUpdated', handleDataUpdate);
       
       // Renderの無料プランでは接続が不安定な場合があるため、定期的にサーバーからデータを取得
-      // Socket.io接続が成功していても、イベントが届かない可能性があるため、常にポーリングする
+      // Socket.io接続が成功していても、イベントが届かない可能性があるため、ポーリングする
+      // ただし、頻繁すぎると画面が見づらくなるため、30秒ごとにポーリング
       const pollInterval = setInterval(() => {
-        console.log('🔄 [Tasks] Polling: サーバーからデータを取得');
-        loadDataFromServer().catch((error) => {
-          console.log('❌ [Tasks] ポーリング時のデータ取得に失敗:', error);
-        });
-      }, 5000); // 5秒ごとにポーリング（より頻繁にチェック）
+        if (!SocketService.isConnected()) {
+          console.log('🔄 [Tasks] Polling: Socket.io未接続、サーバーからデータを取得');
+          loadDataFromServer().catch((error) => {
+            console.log('❌ [Tasks] ポーリング時のデータ取得に失敗:', error);
+          });
+        }
+      }, 30000); // 30秒ごとにポーリング（Socket.io未接続時のみ）
       
       return () => {
         SocketService.off('dataUpdated', handleDataUpdate);
@@ -270,6 +273,18 @@ const Tasks: React.FC = () => {
         console.log('💾 [Tasks] タスクをサーバーに保存開始:', updatedTasks.length, '件');
         await saveDataToServer(STORAGE_KEYS.TASKS_DATA, updatedTasks);
         console.log('✅ [Tasks] タスクの保存が成功しました');
+        
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        // これにより、保存したユーザー自身のブラウザでもデータが確実に更新される
+        setTimeout(async () => {
+          console.log('🔄 [Tasks] 保存後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [Tasks] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [Tasks] データの再取得に失敗:', error);
+          }
+        }, 1000); // 1秒後に再取得（サーバー側の処理を待つ）
       } catch (error) {
         console.error('❌ [Tasks] タスクの保存に失敗しましたが、LocalStorageには保存済みです:', error);
       }
@@ -289,6 +304,14 @@ const Tasks: React.FC = () => {
     // サーバーに保存
     try {
       await saveDataToServer(STORAGE_KEYS.TASKS_DATA, updatedTasks);
+      // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+      setTimeout(async () => {
+        try {
+          await loadDataFromServer();
+        } catch (error) {
+          console.error('データの再取得に失敗:', error);
+        }
+      }, 1000);
     } catch (error) {
       console.error('タスクの更新に失敗しましたが、LocalStorageには保存済みです');
     }
@@ -304,6 +327,14 @@ const Tasks: React.FC = () => {
       // サーバーに保存
       try {
         await saveDataToServer(STORAGE_KEYS.TASKS_DATA, updatedTasks);
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          try {
+            await loadDataFromServer();
+          } catch (error) {
+            console.error('データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
         console.error('タスクの削除に失敗しましたが、LocalStorageには保存済みです');
       }
