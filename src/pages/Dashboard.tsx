@@ -284,9 +284,22 @@ const Dashboard: React.FC = () => {
       
       SocketService.on('dataUpdated', handleDataUpdate);
       
+      // Renderの無料プランでは接続が不安定な場合があるため、定期的にサーバーからデータを取得
+      const pollInterval = setInterval(() => {
+        if (SocketService.isConnected()) {
+          console.log('🔄 [Dashboard] Polling: Socket.io接続中、ポーリングをスキップ');
+        } else {
+          console.log('🔄 [Dashboard] Polling: Socket.io未接続、サーバーからデータを取得');
+          loadDataFromServer().catch(() => {
+            console.log('ポーリング時のデータ取得に失敗');
+          });
+        }
+      }, 10000); // 10秒ごとにポーリング
+      
       // クリーンアップ関数
       return () => {
         SocketService.off('dataUpdated', handleDataUpdate);
+        clearInterval(pollInterval);
       };
     } else {
       // 非認証時はローカルストレージから読み込み

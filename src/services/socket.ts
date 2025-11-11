@@ -22,12 +22,18 @@ class SocketService {
 
     this.currentTeamId = teamId;
     this.socket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'], // pollingも追加して接続性を向上
+      // Renderの無料プランではWebSocketが不安定な場合があるため、ポーリングを優先
+      transports: ['polling', 'websocket'], // pollingを優先に変更
+      upgrade: true, // ポーリングからWebSocketへのアップグレードを許可
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity, // 無限に再接続を試みる
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
+      // ポーリングの設定
+      forceNew: false, // 既存の接続を再利用
+      // Renderの無料プランでの接続安定性を向上
+      autoConnect: true,
     });
 
     this.socket.on('connect', () => {
@@ -45,6 +51,9 @@ class SocketService {
       console.error('❌ Socket.io接続エラー:', error.message);
       console.error('   接続先URL:', SOCKET_URL);
       console.error('   エラー詳細:', error);
+      console.error('   エラータイプ:', error.type);
+      // エラーイベントを発火
+      this.emit('disconnected', { reason: error.message });
     });
 
     // 再接続時にもルームに参加
@@ -68,7 +77,13 @@ class SocketService {
 
     // Handle data updates
     this.socket.on('data-updated', (data: any) => {
-      console.log('Data updated:', data);
+      console.log('📥 [SocketService] data-updated event received:', data);
+      console.log('   - Full data object:', JSON.stringify(data, null, 2));
+      console.log('   - dataType:', data.dataType);
+      console.log('   - userId:', data.userId);
+      console.log('   - timestamp:', data.timestamp);
+      console.log('   - data:', data.data);
+      console.log('   - data length:', Array.isArray(data.data) ? data.data.length : 'N/A');
       // LocalStorage への無差別保存は行わず、各ページ側のハンドラで必要なキーのみ保存する
       this.emit('dataUpdated', data);
     });

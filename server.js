@@ -60,8 +60,13 @@ const io = new Server(server, {
   },
   // 接続タイムアウトの設定
   connectTimeout: 45000,
-  // ポーリングの設定（WebSocketが失敗した場合のフォールバック）
-  transports: ['websocket', 'polling']
+  // Renderの無料プランではWebSocketが不安定な場合があるため、ポーリングも許可
+  transports: ['websocket', 'polling'],
+  // ポーリングの設定
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  // CORS設定を強化
+  allowEIO3: true
 });
 
 // Redisアダプターの設定（オプショナル、本番環境でマルチインスタンス対応）
