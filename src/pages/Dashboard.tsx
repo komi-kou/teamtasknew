@@ -286,15 +286,13 @@ const Dashboard: React.FC = () => {
       
       // Renderの無料プランでは接続が不安定な場合があるため、定期的にサーバーからデータを取得
       // Socket.io接続が成功していても、イベントが届かない可能性があるため、ポーリングする
-      // ただし、頻繁すぎると画面が見づらくなるため、30秒ごとにポーリング
+      // ただし、頻繁すぎると画面が見づらくなるため、60秒ごとにポーリング
       const pollInterval = setInterval(() => {
-        if (!SocketService.isConnected()) {
-          console.log('🔄 [Dashboard] Polling: Socket.io未接続、サーバーからデータを取得');
-          loadDataFromServer().catch((error) => {
-            console.log('❌ [Dashboard] ポーリング時のデータ取得に失敗:', error);
-          });
-        }
-      }, 30000); // 30秒ごとにポーリング（Socket.io未接続時のみ）
+        console.log('🔄 [Dashboard] Polling: サーバーからデータを取得（定期ポーリング）');
+        loadDataFromServer().catch((error) => {
+          console.log('❌ [Dashboard] ポーリング時のデータ取得に失敗:', error);
+        });
+      }, 60000); // 60秒ごとにポーリング（定期同期）
       
       // クリーンアップ関数
       return () => {
@@ -387,6 +385,14 @@ const Dashboard: React.FC = () => {
       // サーバーに保存
       try {
         await saveDataToServer(STORAGE_KEYS.TEAM_MEMBERS, updatedMembers);
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          try {
+            await loadDataFromServer();
+          } catch (error) {
+            console.error('データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
         console.error('チームメンバーの更新に失敗しましたが、LocalStorageには保存済みです');
       }
@@ -428,6 +434,14 @@ const Dashboard: React.FC = () => {
         // サーバーに保存
         try {
           await saveDataToServer(STORAGE_KEYS.TEAM_MEMBERS, updatedMembers);
+          // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+          setTimeout(async () => {
+            try {
+              await loadDataFromServer();
+            } catch (error) {
+              console.error('データの再取得に失敗:', error);
+            }
+          }, 1000);
         } catch (error) {
           console.error('チームメンバーの追加に失敗しましたが、LocalStorageには保存済みです');
         }
@@ -478,6 +492,14 @@ const Dashboard: React.FC = () => {
       // サーバーに保存
       try {
         await saveDataToServer(STORAGE_KEYS.TEAM_MEMBERS, updatedMembers);
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          try {
+            await loadDataFromServer();
+          } catch (error) {
+            console.error('データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
         console.error('チームメンバーの削除に失敗しましたが、LocalStorageには保存済みです');
       }

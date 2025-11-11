@@ -184,8 +184,19 @@ const Documents: React.FC = () => {
       
       SocketService.on('dataUpdated', handleDataUpdate);
       
+      // Renderの無料プランでは接続が不安定な場合があるため、定期的にサーバーからデータを取得
+      // Socket.io接続が成功していても、イベントが届かない可能性があるため、ポーリングする
+      // ただし、頻繁すぎると画面が見づらくなるため、60秒ごとにポーリング
+      const pollInterval = setInterval(() => {
+        console.log('🔄 [Documents] Polling: サーバーからデータを取得（定期ポーリング）');
+        loadDataFromServer().catch((error) => {
+          console.log('❌ [Documents] ポーリング時のデータ取得に失敗:', error);
+        });
+      }, 60000); // 60秒ごとにポーリング（定期同期）
+      
       return () => {
         SocketService.off('dataUpdated', handleDataUpdate);
+        clearInterval(pollInterval);
       };
     } else {
       // 非認証時はローカルストレージから読み込み
@@ -298,10 +309,22 @@ const Documents: React.FC = () => {
       
       // サーバーに保存（チームメンバー追加と同じパターン）
       try {
+        console.log('💾 [Documents] 議事録・資料をサーバーに保存開始');
         await saveDataToServer(STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
         await saveDataToServer(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
+        console.log('✅ [Documents] 議事録・資料の保存が成功しました');
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          console.log('🔄 [Documents] 保存後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [Documents] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [Documents] データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
-        console.error('議事録・資料データの保存に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [Documents] 議事録・資料データの保存に失敗しましたが、LocalStorageには保存済みです:', error);
       }
       
       setNewMinutes({ 
@@ -381,9 +404,21 @@ const Documents: React.FC = () => {
       
       // サーバーに保存（チームメンバー追加と同じパターン）
       try {
+        console.log('💾 [Documents] コメントを追加してサーバーに保存開始');
         await saveDataToServer(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
+        console.log('✅ [Documents] コメントの追加が成功しました');
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          console.log('🔄 [Documents] コメント追加後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [Documents] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [Documents] データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
-        console.error('コメントデータの保存に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [Documents] コメントデータの保存に失敗しましたが、LocalStorageには保存済みです:', error);
       }
       
       setSelectedDoc(updatedDocs.find(d => d.id === selectedDoc.id) || null);
@@ -434,12 +469,24 @@ const Documents: React.FC = () => {
       
       // サーバーに保存（チームメンバー追加と同じパターン）
       try {
+        console.log('💾 [Documents] 資料・議事録を削除してサーバーに保存開始');
         await saveDataToServer(STORAGE_KEYS.DOCUMENTS_DATA, updatedDocs);
         if (doc.type === '議事録') {
           await saveDataToServer(STORAGE_KEYS.MEETING_MINUTES, updatedMinutes);
         }
+        console.log('✅ [Documents] 資料・議事録の削除が成功しました');
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          console.log('🔄 [Documents] 削除後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [Documents] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [Documents] データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
-        console.error('資料・議事録データの削除に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [Documents] 資料・議事録データの削除に失敗しましたが、LocalStorageには保存済みです:', error);
       }
       
       if (selectedDoc?.id === docId) {

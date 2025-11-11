@@ -125,8 +125,19 @@ const SalesEmails: React.FC = () => {
       
       SocketService.on('dataUpdated', handleDataUpdate);
       
+      // Renderの無料プランでは接続が不安定な場合があるため、定期的にサーバーからデータを取得
+      // Socket.io接続が成功していても、イベントが届かない可能性があるため、ポーリングする
+      // ただし、頻繁すぎると画面が見づらくなるため、60秒ごとにポーリング
+      const pollInterval = setInterval(() => {
+        console.log('🔄 [SalesEmails] Polling: サーバーからデータを取得（定期ポーリング）');
+        loadDataFromServer().catch((error) => {
+          console.log('❌ [SalesEmails] ポーリング時のデータ取得に失敗:', error);
+        });
+      }, 60000); // 60秒ごとにポーリング（定期同期）
+      
       return () => {
         SocketService.off('dataUpdated', handleDataUpdate);
+        clearInterval(pollInterval);
       };
     } else {
       // 非認証時はローカルストレージから読み込み
@@ -188,9 +199,21 @@ const SalesEmails: React.FC = () => {
       
       // サーバーに保存
       try {
+        console.log('💾 [SalesEmails] 営業メールをサーバーに保存開始:', updatedEmails.length, '件');
         await saveDataToServer(STORAGE_KEYS.SALES_EMAILS, updatedEmails);
+        console.log('✅ [SalesEmails] 営業メールの保存が成功しました');
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          console.log('🔄 [SalesEmails] 保存後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [SalesEmails] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [SalesEmails] データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
-        console.error('営業メールの保存に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [SalesEmails] 営業メールの保存に失敗しましたが、LocalStorageには保存済みです:', error);
       }
       
       setNewEmail({
@@ -249,9 +272,21 @@ const SalesEmails: React.FC = () => {
       
       // サーバーに保存
       try {
+        console.log('💾 [SalesEmails] 営業メールを削除してサーバーに保存開始:', updatedEmails.length, '件');
         await saveDataToServer(STORAGE_KEYS.SALES_EMAILS, updatedEmails);
+        console.log('✅ [SalesEmails] 営業メールの削除が成功しました');
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          console.log('🔄 [SalesEmails] 削除後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [SalesEmails] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [SalesEmails] データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
-        console.error('営業メールの削除に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [SalesEmails] 営業メールの削除に失敗しましたが、LocalStorageには保存済みです:', error);
       }
     }
   };

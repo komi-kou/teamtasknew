@@ -140,8 +140,19 @@ const Sales: React.FC = () => {
       
       SocketService.on('dataUpdated', handleDataUpdate);
       
+      // Renderの無料プランでは接続が不安定な場合があるため、定期的にサーバーからデータを取得
+      // Socket.io接続が成功していても、イベントが届かない可能性があるため、ポーリングする
+      // ただし、頻繁すぎると画面が見づらくなるため、60秒ごとにポーリング
+      const pollInterval = setInterval(() => {
+        console.log('🔄 [Sales] Polling: サーバーからデータを取得（定期ポーリング）');
+        loadDataFromServer().catch((error) => {
+          console.log('❌ [Sales] ポーリング時のデータ取得に失敗:', error);
+        });
+      }, 60000); // 60秒ごとにポーリング（定期同期）
+      
       return () => {
         SocketService.off('dataUpdated', handleDataUpdate);
+        clearInterval(pollInterval);
       };
     } else {
       // 非認証時はローカルストレージから読み込み
@@ -207,9 +218,21 @@ const Sales: React.FC = () => {
       
       // サーバーに保存
       try {
+        console.log('💾 [Sales] リードをサーバーに保存開始:', updatedLeads.length, '件');
         await saveDataToServer(STORAGE_KEYS.LEADS_DATA, updatedLeads);
+        console.log('✅ [Sales] リードの保存が成功しました');
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          console.log('🔄 [Sales] 保存後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [Sales] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [Sales] データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
-        console.error('リードデータの保存に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [Sales] リードデータの保存に失敗しましたが、LocalStorageには保存済みです:', error);
       }
       
       setNewLead({ 
@@ -246,9 +269,21 @@ const Sales: React.FC = () => {
       
       // サーバーに保存
       try {
+        console.log('💾 [Sales] サービスを追加してサーバーに保存開始:', updatedLeads.length, '件');
         await saveDataToServer(STORAGE_KEYS.LEADS_DATA, updatedLeads);
+        console.log('✅ [Sales] サービスの追加が成功しました');
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          console.log('🔄 [Sales] サービス追加後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [Sales] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [Sales] データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
-        console.error('サービスデータの保存に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [Sales] サービスデータの保存に失敗しましたが、LocalStorageには保存済みです:', error);
       }
       
       setNewService({ status: 'proposed', category: 'other' });
@@ -286,9 +321,21 @@ const Sales: React.FC = () => {
       
       // サーバーに保存
       try {
+        console.log('💾 [Sales] リードを削除してサーバーに保存開始:', updatedLeads.length, '件');
         await saveDataToServer(STORAGE_KEYS.LEADS_DATA, updatedLeads);
+        console.log('✅ [Sales] リードの削除が成功しました');
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          console.log('🔄 [Sales] 削除後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [Sales] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [Sales] データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
-        console.error('リードデータの削除に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [Sales] リードデータの削除に失敗しましたが、LocalStorageには保存済みです:', error);
       }
     }
   };

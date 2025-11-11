@@ -135,8 +135,19 @@ const ServiceMaterials: React.FC = () => {
       
       SocketService.on('dataUpdated', handleDataUpdate);
       
+      // Renderの無料プランでは接続が不安定な場合があるため、定期的にサーバーからデータを取得
+      // Socket.io接続が成功していても、イベントが届かない可能性があるため、ポーリングする
+      // ただし、頻繁すぎると画面が見づらくなるため、60秒ごとにポーリング
+      const pollInterval = setInterval(() => {
+        console.log('🔄 [ServiceMaterials] Polling: サーバーからデータを取得（定期ポーリング）');
+        loadDataFromServer().catch((error) => {
+          console.log('❌ [ServiceMaterials] ポーリング時のデータ取得に失敗:', error);
+        });
+      }, 60000); // 60秒ごとにポーリング（定期同期）
+      
       return () => {
         SocketService.off('dataUpdated', handleDataUpdate);
+        clearInterval(pollInterval);
       };
     } else {
       // 非認証時はローカルストレージから読み込み
@@ -215,9 +226,21 @@ const ServiceMaterials: React.FC = () => {
       
       // サーバーに保存
       try {
+        console.log('💾 [ServiceMaterials] サービス資料をサーバーに保存開始:', updatedMaterials.length, '件');
         await saveDataToServer(STORAGE_KEYS.SERVICE_MATERIALS, updatedMaterials);
+        console.log('✅ [ServiceMaterials] サービス資料の保存が成功しました');
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          console.log('🔄 [ServiceMaterials] 保存後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [ServiceMaterials] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [ServiceMaterials] データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
-        console.error('サービス資料の保存に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [ServiceMaterials] サービス資料の保存に失敗しましたが、LocalStorageには保存済みです:', error);
       }
     }
     
@@ -283,9 +306,21 @@ const ServiceMaterials: React.FC = () => {
       
       // サーバーに保存
       try {
+        console.log('💾 [ServiceMaterials] サービス資料を削除してサーバーに保存開始:', updatedMaterials.length, '件');
         await saveDataToServer(STORAGE_KEYS.SERVICE_MATERIALS, updatedMaterials);
+        console.log('✅ [ServiceMaterials] サービス資料の削除が成功しました');
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          console.log('🔄 [ServiceMaterials] 削除後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [ServiceMaterials] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [ServiceMaterials] データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
-        console.error('サービス資料の削除に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [ServiceMaterials] サービス資料の削除に失敗しましたが、LocalStorageには保存済みです:', error);
       }
     }
   };
@@ -299,9 +334,21 @@ const ServiceMaterials: React.FC = () => {
     
     // サーバーに保存
     try {
+      console.log('💾 [ServiceMaterials] ダウンロード数を更新してサーバーに保存開始:', updatedMaterials.length, '件');
       await saveDataToServer(STORAGE_KEYS.SERVICE_MATERIALS, updatedMaterials);
+      console.log('✅ [ServiceMaterials] ダウンロード数の更新が成功しました');
+      // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+      setTimeout(async () => {
+        console.log('🔄 [ServiceMaterials] ダウンロード数更新後にサーバーからデータを再取得');
+        try {
+          await loadDataFromServer();
+          console.log('✅ [ServiceMaterials] データの再取得が成功しました');
+        } catch (error) {
+          console.error('❌ [ServiceMaterials] データの再取得に失敗:', error);
+        }
+      }, 1000);
     } catch (error) {
-      console.error('ダウンロード数の更新に失敗しましたが、LocalStorageには保存済みです');
+      console.error('❌ [ServiceMaterials] ダウンロード数の更新に失敗しましたが、LocalStorageには保存済みです:', error);
     }
     
     if (material.fileData) {

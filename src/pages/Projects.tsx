@@ -171,8 +171,19 @@ const Projects: React.FC = () => {
       
       SocketService.on('dataUpdated', handleDataUpdate);
       
+      // Renderの無料プランでは接続が不安定な場合があるため、定期的にサーバーからデータを取得
+      // Socket.io接続が成功していても、イベントが届かない可能性があるため、ポーリングする
+      // ただし、頻繁すぎると画面が見づらくなるため、60秒ごとにポーリング
+      const pollInterval = setInterval(() => {
+        console.log('🔄 [Projects] Polling: サーバーからデータを取得（定期ポーリング）');
+        loadDataFromServer().catch((error) => {
+          console.log('❌ [Projects] ポーリング時のデータ取得に失敗:', error);
+        });
+      }, 60000); // 60秒ごとにポーリング（定期同期）
+      
       return () => {
         SocketService.off('dataUpdated', handleDataUpdate);
+        clearInterval(pollInterval);
       };
     } else {
       // 非認証時はローカルストレージから読み込み
@@ -243,9 +254,21 @@ const Projects: React.FC = () => {
       
       // サーバーに保存
       try {
+        console.log('💾 [Projects] 案件をサーバーに保存開始:', updatedProjects.length, '件');
         await saveDataToServer(STORAGE_KEYS.PROJECTS_DATA, updatedProjects);
+        console.log('✅ [Projects] 案件の保存が成功しました');
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          console.log('🔄 [Projects] 保存後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [Projects] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [Projects] データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
-        console.error('案件データの保存に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [Projects] 案件データの保存に失敗しましたが、LocalStorageには保存済みです:', error);
       }
       
       setNewProject({
@@ -284,9 +307,21 @@ const Projects: React.FC = () => {
       
       // サーバーに保存
       try {
+        console.log('💾 [Projects] 納品物を追加してサーバーに保存開始:', updatedProjects.length, '件');
         await saveDataToServer(STORAGE_KEYS.PROJECTS_DATA, updatedProjects);
+        console.log('✅ [Projects] 納品物の追加が成功しました');
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          console.log('🔄 [Projects] 納品物追加後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [Projects] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [Projects] データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
-        console.error('納品物データの保存に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [Projects] 納品物データの保存に失敗しましたが、LocalStorageには保存済みです:', error);
       }
       
       setNewDeliverable({ status: 'pending' });
@@ -305,9 +340,21 @@ const Projects: React.FC = () => {
     
     // サーバーに保存
     try {
+      console.log('💾 [Projects] 進捗を更新してサーバーに保存開始:', updatedProjects.length, '件');
       await saveDataToServer(STORAGE_KEYS.PROJECTS_DATA, updatedProjects);
+      console.log('✅ [Projects] 進捗の更新が成功しました');
+      // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+      setTimeout(async () => {
+        console.log('🔄 [Projects] 進捗更新後にサーバーからデータを再取得');
+        try {
+          await loadDataFromServer();
+          console.log('✅ [Projects] データの再取得が成功しました');
+        } catch (error) {
+          console.error('❌ [Projects] データの再取得に失敗:', error);
+        }
+      }, 1000);
     } catch (error) {
-      console.error('進捗データの保存に失敗しましたが、LocalStorageには保存済みです');
+      console.error('❌ [Projects] 進捗データの保存に失敗しましたが、LocalStorageには保存済みです:', error);
     }
   };
 
@@ -334,9 +381,21 @@ const Projects: React.FC = () => {
     
     // サーバーに保存
     try {
+      console.log('💾 [Projects] ステータスを更新してサーバーに保存開始:', updatedProjects.length, '件');
       await saveDataToServer(STORAGE_KEYS.PROJECTS_DATA, updatedProjects);
+      console.log('✅ [Projects] ステータスの更新が成功しました');
+      // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+      setTimeout(async () => {
+        console.log('🔄 [Projects] ステータス更新後にサーバーからデータを再取得');
+        try {
+          await loadDataFromServer();
+          console.log('✅ [Projects] データの再取得が成功しました');
+        } catch (error) {
+          console.error('❌ [Projects] データの再取得に失敗:', error);
+        }
+      }, 1000);
     } catch (error) {
-      console.error('ステータスデータの保存に失敗しましたが、LocalStorageには保存済みです');
+      console.error('❌ [Projects] ステータスデータの保存に失敗しましたが、LocalStorageには保存済みです:', error);
     }
   };
 
@@ -371,9 +430,21 @@ const Projects: React.FC = () => {
       
       // サーバーに保存
       try {
+        console.log('💾 [Projects] 案件を削除してサーバーに保存開始:', updatedProjects.length, '件');
         await saveDataToServer(STORAGE_KEYS.PROJECTS_DATA, updatedProjects);
+        console.log('✅ [Projects] 案件の削除が成功しました');
+        // Socket.ioイベントが届かない可能性があるため、保存後にサーバーから再取得
+        setTimeout(async () => {
+          console.log('🔄 [Projects] 削除後にサーバーからデータを再取得');
+          try {
+            await loadDataFromServer();
+            console.log('✅ [Projects] データの再取得が成功しました');
+          } catch (error) {
+            console.error('❌ [Projects] データの再取得に失敗:', error);
+          }
+        }, 1000);
       } catch (error) {
-        console.error('案件データの削除に失敗しましたが、LocalStorageには保存済みです');
+        console.error('❌ [Projects] 案件データの削除に失敗しましたが、LocalStorageには保存済みです:', error);
       }
     }
   };

@@ -544,11 +544,22 @@ app.post('/api/data/:dataType', authenticateToken, async (req, res) => {
     console.log(`   - Connected clients: ${clientCount}`);
     console.log(`   - Client IDs: ${clients.join(', ')}`);
     console.log(`   - Data length: ${Array.isArray(data) ? data.length : 'N/A'}`);
-    console.log(`   - All rooms: ${Array.from(io.sockets.adapter.rooms.keys()).join(', ')}`);
+    
+    // 全ルームの情報を出力（デバッグ用）
+    const allRooms = Array.from(io.sockets.adapter.rooms.keys());
+    console.log(`   - All rooms (${allRooms.length}):`, allRooms.join(', '));
+    
+    // 全接続クライアントの情報を出力（デバッグ用）
+    const allSockets = Array.from(io.sockets.sockets.keys());
+    console.log(`   - All connected sockets (${allSockets.length}):`, allSockets.slice(0, 10).join(', '), allSockets.length > 10 ? '...' : '');
     
     if (clientCount === 0) {
-      console.warn(`⚠️ [API] 警告: チーム ${teamId} に接続しているクライアントが0です！`);
-      console.warn(`⚠️ [API] イベントは送信されますが、誰も受信しません。`);
+      console.warn(`⚠️⚠️⚠️ [API] 警告: チーム ${teamId} に接続しているクライアントが0です！`);
+      console.warn(`⚠️⚠️⚠️ [API] イベントは送信されますが、誰も受信しません。`);
+      console.warn(`⚠️⚠️⚠️ [API] 考えられる原因:`);
+      console.warn(`⚠️⚠️⚠️   1. 他のブラウザがSocket.ioに接続していない`);
+      console.warn(`⚠️⚠️⚠️   2. 他のブラウザが別のインスタンスに接続している（Renderの無料プランで複数インスタンスが起動している場合）`);
+      console.warn(`⚠️⚠️⚠️   3. ルームに参加できていない`);
     }
     
     // クライアント側で使用するdataTypeをそのまま送信（fieldMapのキーを使用）
@@ -559,11 +570,23 @@ app.post('/api/data/:dataType', authenticateToken, async (req, res) => {
       timestamp: new Date().toISOString()
     };
     
-    console.log(`   - Event data:`, JSON.stringify(eventData, null, 2).substring(0, 500));
+    console.log(`   - Event data preview:`, JSON.stringify({
+      dataType: eventData.dataType,
+      userId: eventData.userId,
+      timestamp: eventData.timestamp,
+      dataLength: Array.isArray(eventData.data) ? eventData.data.length : 'N/A'
+    }, null, 2));
     
+    // イベントを送信
     io.to(teamId).emit('data-updated', eventData);
     
     console.log(`✅ [API] Data-updated event sent for ${dataType} to team ${teamId} (${clientCount} clients)`);
+    
+    // クライアント数が0の場合、追加の警告
+    if (clientCount === 0) {
+      console.warn(`⚠️⚠️⚠️ [API] データは保存されましたが、他のブラウザには通知されませんでした。`);
+      console.warn(`⚠️⚠️⚠️ [API] 他のブラウザは、ポーリング（60秒ごと）でデータを取得します。`);
+    }
 
     res.json({ success: true });
   } catch (error) {
